@@ -1,0 +1,11 @@
+.DS_Store
+.worktrees/
+.superpowers/
+.env
+.nuxt/
+.output/
+node_modules/
+generated/
+coverage/
+playwright-report/
+test-results/

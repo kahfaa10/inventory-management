@@ -81,7 +81,7 @@ Use package scripts with these stable names:
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "node .output/server/index.mjs",
-    "postinstall": "nuxt prepare && prisma generate",
+    "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -159,6 +159,7 @@ git commit -m "chore: scaffold Nuxt inventory application"
 - Create: `tests/helpers/database.ts`
 - Create: `tests/integration/schema.test.ts`
 - Create: `docker-compose.yml`
+- Modify: `package.json`
 - Modify: `.env.example`
 
 **Interfaces:**
@@ -234,6 +235,8 @@ export const prisma = new PrismaClient({ adapter })
 
 Configure the generator output as `../generated/prisma` and place the migration URL in `prisma.config.ts`. Configure PostgreSQL 17 in Compose with a health check and a named data volume.
 
+After the schema exists, update `package.json` so `postinstall` is `nuxt prepare && prisma generate`; this avoids invoking Prisma generation before Task 2 creates `prisma/schema.prisma`.
+
 - [ ] **Step 5: Migrate and verify the schema**
 
 Run: `docker compose up -d db && pnpm db:generate && pnpm db:deploy && pnpm test:integration tests/integration/schema.test.ts`
@@ -243,7 +246,7 @@ Expected: migration succeeds and the duplicate null-DP/N test passes.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add prisma.config.ts prisma server/utils/prisma.ts tests/helpers/database.ts tests/integration/schema.test.ts docker-compose.yml .env.example generated
+git add prisma.config.ts prisma server/utils/prisma.ts tests/helpers/database.ts tests/integration/schema.test.ts docker-compose.yml .env.example package.json
 git commit -m "feat: add inventory database schema"
 ```
 
