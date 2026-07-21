@@ -3,6 +3,7 @@
 .superpowers/
 .env
 .nuxt/
+.nuxtrc
 .output/
 node_modules/
 generated/
