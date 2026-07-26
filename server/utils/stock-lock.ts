@@ -31,3 +31,16 @@ export async function lockStockKeys(tx: StockLockClient, keys: readonly StockKey
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deviceKey}, ${rackKey})`)
   }
 }
+
+export async function lockStockReleaseDetailRows(
+  tx: StockLockClient,
+  stockReleaseId: bigint,
+): Promise<void> {
+  await tx.$executeRaw(Prisma.sql`
+    SELECT "id"
+    FROM "stock_release_details"
+    WHERE "stock_release_id" = ${stockReleaseId}
+    ORDER BY "id"
+    FOR UPDATE
+  `)
+}

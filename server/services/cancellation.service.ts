@@ -73,3 +73,46 @@ export async function reverseInboundStockMovements(
     })),
   })
 }
+
+export async function reverseOutboundStockMovements(
+  tx: Prisma.TransactionClient,
+  originals: readonly StockMovement[],
+  actorId: bigint,
+): Promise<void> {
+  for (const original of originals) {
+    if (
+      original.movementPurpose !== MovementPurpose.ORIGINAL ||
+      original.quantityIn !== 0 ||
+      original.quantityOut <= 0
+    ) {
+      throw new ApiError(409, 'INVALID_CANCELLATION_SOURCE', 'Movement cannot be reversed.')
+    }
+  }
+
+  await lockStockKeys(
+    tx,
+    originals.map((original) => ({
+      deviceDetailId: original.deviceDetailId,
+      rackId: original.rackId,
+    })),
+  )
+
+  await tx.stockMovement.createMany({
+    data: originals.map((original) => ({
+      deviceDetailId: original.deviceDetailId,
+      rackId: original.rackId,
+      customerId: original.customerId,
+      transactionType: original.transactionType,
+      transactionId: original.transactionId,
+      transactionDetailId: original.transactionDetailId,
+      transactionNumber: original.transactionNumber,
+      transactionDate: original.transactionDate,
+      engineerName: original.engineerName,
+      quantityIn: original.quantityOut,
+      quantityOut: original.quantityIn,
+      movementPurpose: MovementPurpose.CANCELLATION_REVERSAL,
+      reversalOfId: original.id,
+      createdById: actorId,
+    })),
+  })
+}

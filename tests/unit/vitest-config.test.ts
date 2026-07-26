@@ -22,6 +22,7 @@ describe('Vitest configuration', () => {
       'tests/nuxt/master-api.test.ts',
       'tests/nuxt/stock-balance-api.test.ts',
       'tests/nuxt/stock-adjustment-in-api.test.ts',
+      'tests/nuxt/stock-release-api.test.ts',
     ])
     expect(nuxtHttpProject?.test?.environment).toBe('node')
     expect(nuxtHttpProject?.test?.testTimeout).toBe(15_000)
@@ -31,6 +32,7 @@ describe('Vitest configuration', () => {
       'tests/nuxt/master-api.test.ts',
       'tests/nuxt/stock-balance-api.test.ts',
       'tests/nuxt/stock-adjustment-in-api.test.ts',
+      'tests/nuxt/stock-release-api.test.ts',
     ])
     expect(integrationProject?.test?.include).toEqual(['tests/integration/**/*.{test,spec}.ts'])
     expect(nuxtProject?.plugins).not.toHaveLength(0)
