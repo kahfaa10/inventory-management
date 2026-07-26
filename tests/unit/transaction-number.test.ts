@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { Prisma, TransactionType } from '../../generated/prisma/client'
 import {
   formatTransactionNumber,
+  MAX_TRANSACTION_SEQUENCE,
+  nextTransactionNumber,
   transactionNumberPrefix,
 } from '../../server/services/transaction-number.service'
 import {
@@ -25,6 +27,42 @@ describe('transaction numbering', () => {
     expect(transactionNumberPrefix(TransactionType.STOCK_ADJUSTMENT_IN)).toBe('SAI')
     expect(transactionNumberPrefix(TransactionType.STOCK_RELEASE)).toBe('SRL')
     expect(transactionNumberPrefix(TransactionType.STOCK_RETURN)).toBe('SRT')
+  })
+
+  it.each([
+    [new Date(Number.NaN), 1],
+    [new Date('2026-07-19'), 0],
+    [new Date('2026-07-19'), -1],
+    [new Date('2026-07-19'), 1.5],
+    [new Date('2026-07-19'), MAX_TRANSACTION_SEQUENCE + 1],
+  ])('rejects an invalid date or sequence (%s, %s)', (date, sequence) => {
+    expect(() => formatTransactionNumber('SAI', date, sequence)).toThrowError(
+      expect.objectContaining({
+        statusCode: 422,
+        code: 'INVALID_TRANSACTION_NUMBER',
+      }),
+    )
+  })
+
+  it('returns a stable exhaustion error before incrementing a full PostgreSQL Int counter', async () => {
+    const tx = {
+      transactionCounter: {
+        findUnique: vi.fn().mockResolvedValue({ lastNumber: MAX_TRANSACTION_SEQUENCE }),
+        upsert: vi.fn(),
+      },
+    }
+
+    await expect(
+      nextTransactionNumber(
+        tx as unknown as Prisma.TransactionClient,
+        TransactionType.STOCK_ADJUSTMENT_IN,
+        new Date('2026-07-19'),
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'TRANSACTION_NUMBER_EXHAUSTED',
+    })
+    expect(tx.transactionCounter.upsert).not.toHaveBeenCalled()
   })
 })
 

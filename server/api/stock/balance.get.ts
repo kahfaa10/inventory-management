@@ -2,7 +2,7 @@ import { getQuery } from 'h3'
 import { z } from 'zod'
 import { idSchema } from '../../../shared/schemas/common'
 import type { StockBalanceResponse } from '../../../shared/types/stock'
-import { getStockBalance } from '../../services/stock.service'
+import { getAvailableStockBalance } from '../../services/stock.service'
 import { requireAppUser } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import { parseQuery } from '../../utils/validation'
@@ -21,6 +21,6 @@ export default defineEventHandler(async (event): Promise<StockBalanceResponse> =
   return {
     deviceDetailId: query.deviceDetailId,
     rackId: query.rackId,
-    balance: await getStockBalance(prisma, deviceDetailId, rackId),
+    balance: await getAvailableStockBalance(prisma, deviceDetailId, rackId),
   }
 })

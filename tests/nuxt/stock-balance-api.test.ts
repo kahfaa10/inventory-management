@@ -101,6 +101,51 @@ describe('stock balance API over Nitro HTTP', () => {
   })
 
   it.each([
+    ['Device Detail', '9223372036854775807', undefined],
+    ['Rack', undefined, '9223372036854775807'],
+  ])('returns NOT_FOUND when a valid %s ID does not exist', async (_label, detailId, rackId) => {
+    await withCleanDatabase(async () => {
+      const { user, detail, rack } = await createStock()
+      const response = await fetch(
+        `/api/stock/balance?deviceDetailId=${detailId ?? detail.id}&rackId=${rackId ?? rack.id}`,
+        { headers: { cookie: await login(user.email) } },
+      )
+
+      expect(response.status).toBe(404)
+      await expect(response.json()).resolves.toMatchObject({
+        data: { code: 'NOT_FOUND' },
+      })
+    })
+  })
+
+  it.each(['deviceDetail', 'rack'] as const)(
+    'returns INACTIVE_MASTER when the selected %s is inactive',
+    async (master) => {
+      await withCleanDatabase(async () => {
+        const { user, detail, rack } = await createStock()
+        if (master === 'deviceDetail') {
+          await prisma.deviceDetail.update({
+            where: { id: detail.id },
+            data: { isActive: false },
+          })
+        } else {
+          await prisma.rack.update({ where: { id: rack.id }, data: { isActive: false } })
+        }
+
+        const response = await fetch(
+          `/api/stock/balance?deviceDetailId=${detail.id}&rackId=${rack.id}`,
+          { headers: { cookie: await login(user.email) } },
+        )
+
+        expect(response.status).toBe(422)
+        await expect(response.json()).resolves.toMatchObject({
+          data: { code: 'INACTIVE_MASTER' },
+        })
+      })
+    },
+  )
+
+  it.each([
     '/api/stock/balance',
     '/api/stock/balance?deviceDetailId=0&rackId=1',
     '/api/stock/balance?deviceDetailId=9223372036854775808&rackId=1',
