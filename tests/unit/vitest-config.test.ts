@@ -24,6 +24,8 @@ describe('Vitest configuration', () => {
       'tests/nuxt/stock-adjustment-in-api.test.ts',
     ])
     expect(nuxtHttpProject?.test?.environment).toBe('node')
+    expect(nuxtHttpProject?.test?.testTimeout).toBe(15_000)
+    expect(nuxtHttpProject?.test?.hookTimeout).toBeUndefined()
     expect(nuxtHttpProject?.test?.include).toEqual([
       'tests/nuxt/auth-routes.test.ts',
       'tests/nuxt/master-api.test.ts',
