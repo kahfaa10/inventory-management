@@ -1,3 +1,4 @@
+import { H3Error } from 'h3'
 import type { ZodError } from 'zod'
 
 export interface ApiErrorBody {
@@ -7,11 +8,11 @@ export interface ApiErrorBody {
   fieldErrors?: Record<string, string[]>
 }
 
-export class ApiError extends Error {
-  readonly statusCode: number
+export class ApiError extends H3Error<Omit<ApiErrorBody, 'statusCode'>> {
+  override statusCode: number
   readonly code: string
   readonly fieldErrors?: Record<string, string[]>
-  readonly data: Omit<ApiErrorBody, 'statusCode'>
+  override data: Omit<ApiErrorBody, 'statusCode'>
 
   constructor(
     statusCode: number,

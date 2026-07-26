@@ -17,14 +17,20 @@ interface AuthGuardDependencies {
   findUserById?: (id: bigint) => Promise<StoredAppUser | null>
 }
 
+interface AppSessionReference {
+  user?: {
+    id?: string
+  }
+}
+
 const unauthenticatedError = () =>
   new ApiError(401, 'UNAUTHENTICATED', 'Authentication is required.')
 
-export async function requireAppUser(
+export async function refreshAppUser(
   event: H3Event,
+  session: AppSessionReference,
   dependencies: AuthGuardDependencies = {},
 ): Promise<AppSessionUser> {
-  const getSession = dependencies.getSession ?? ((currentEvent) => getUserSession(currentEvent))
   const clearSession =
     dependencies.clearSession ?? ((currentEvent) => clearUserSession(currentEvent))
   const findUserById =
@@ -40,7 +46,6 @@ export async function requireAppUser(
           isActive: true,
         },
       }))
-  const session = await getSession(event)
 
   if (!session.user?.id) {
     throw unauthenticatedError()
@@ -68,6 +73,16 @@ export async function requireAppUser(
     name: user.displayName,
     role: user.role,
   }
+}
+
+export async function requireAppUser(
+  event: H3Event,
+  dependencies: AuthGuardDependencies = {},
+): Promise<AppSessionUser> {
+  const getSession = dependencies.getSession ?? ((currentEvent) => getUserSession(currentEvent))
+  const session = await getSession(event)
+
+  return refreshAppUser(event, session, dependencies)
 }
 
 export async function requireRole(

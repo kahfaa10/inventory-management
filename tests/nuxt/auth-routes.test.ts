@@ -1,212 +1,194 @@
-import type { H3Event } from 'h3'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError } from '../../server/utils/api-error'
+import { hash } from 'argon2'
+import { fetch, setup } from '@nuxt/test-utils/e2e'
+import { fileURLToPath } from 'node:url'
+import { afterAll, describe, expect, it } from 'vitest'
+import { UserRole } from '../../generated/prisma/client'
+import { prisma, withCleanDatabase } from '../helpers/database'
 
-const mocks = vi.hoisted(() => ({
-  authenticateUser: vi.fn(),
-  clearUserSession: vi.fn(),
-  getUserSession: vi.fn(),
-  readBody: vi.fn(),
-  setUserSession: vi.fn(),
-  userFindUnique: vi.fn(),
-}))
+const TEST_PASSWORD = 'Correct-Horse-123!'
 
-vi.mock('../../server/services/auth.service', () => ({
-  authenticateUser: mocks.authenticateUser,
-}))
-
-vi.mock('../../server/utils/prisma', () => ({
-  prisma: {
-    user: {
-      findUnique: mocks.userFindUnique,
-    },
+await setup({
+  rootDir: fileURLToPath(new URL('../fixtures/nuxt', import.meta.url)),
+  server: true,
+  browser: false,
+  env: {
+    VITEST: 'true',
+    TEST_DATABASE_URL: process.env.TEST_DATABASE_URL,
+    DATABASE_URL: process.env.DATABASE_URL,
   },
-}))
+})
 
-const event = {} as H3Event
-
-describe('authentication routes and guards', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+async function createUser({
+  email,
+  role = UserRole.USER,
+  isActive = true,
+}: {
+  email: string
+  role?: UserRole
+  isActive?: boolean
+}) {
+  return prisma.user.create({
+    data: {
+      email,
+      displayName: role === UserRole.ADMIN ? 'Inventory Administrator' : 'Inventory User',
+      passwordHash: await hash(TEST_PASSWORD),
+      role,
+      isActive,
+    },
   })
+}
 
-  it('creates a sealed cookie session after successful login', async () => {
-    const user = {
-      id: '42',
-      email: 'engineer@example.com',
-      name: 'Inventory Engineer',
-      role: 'USER' as const,
-    }
-    mocks.readBody.mockResolvedValue({
-      email: ' ENGINEER@EXAMPLE.COM ',
-      password: 'Correct-Horse-123!',
-    })
-    mocks.authenticateUser.mockResolvedValue(user)
-    mocks.setUserSession.mockResolvedValue({ user })
-    const { createLoginHandler } = await import('../../server/api/auth/login.post')
-    const login = createLoginHandler({
-      readRequestBody: mocks.readBody,
-      authenticate: mocks.authenticateUser,
-      setSession: mocks.setUserSession,
-      now: () => new Date('2026-07-19T08:30:00.000Z'),
-    })
-
-    await expect(login(event)).resolves.toEqual({ user })
-    expect(mocks.setUserSession).toHaveBeenCalledWith(event, {
-      user,
-      loggedInAt: '2026-07-19T08:30:00.000Z',
-    })
-    expect(mocks.setUserSession.mock.calls[0]?.[1]).not.toHaveProperty('passwordHash')
+async function login(email: string, password = TEST_PASSWORD) {
+  return fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
   })
+}
 
-  it('returns the same safe error for invalid login', async () => {
-    mocks.readBody.mockResolvedValue({
-      email: 'missing@example.com',
-      password: 'Incorrect-Password-123!',
-    })
-    mocks.authenticateUser.mockRejectedValue(
-      new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.'),
-    )
-    const { createLoginHandler } = await import('../../server/api/auth/login.post')
-    const login = createLoginHandler({
-      readRequestBody: mocks.readBody,
-      authenticate: mocks.authenticateUser,
-      setSession: mocks.setUserSession,
-    })
+function requestCookie(response: Response) {
+  const setCookie = response.headers.get('set-cookie')
+  expect(setCookie).toContain('nuxt-session=')
+  return setCookie!.split(';', 1)[0]!
+}
 
-    await expect(login(event)).rejects.toMatchObject({
-      statusCode: 401,
-      code: 'INVALID_CREDENTIALS',
-      message: 'Invalid email or password.',
-    })
-  })
+describe('sealed authentication sessions over Nitro HTTP', () => {
+  it('logs in, sets a sealed cookie, and exposes only the safe session user', async () => {
+    await withCleanDatabase(async () => {
+      const user = await createUser({ email: 'engineer@example.com' })
+      const loginResponse = await login(`  ${user.email.toUpperCase()} `)
 
-  it('rejects malformed or mass-assigned login bodies before authentication', async () => {
-    mocks.readBody.mockResolvedValue({
-      email: 'not-an-email',
-      password: '',
-      role: 'ADMIN',
-    })
-    const { createLoginHandler } = await import('../../server/api/auth/login.post')
-    const login = createLoginHandler({
-      readRequestBody: mocks.readBody,
-      authenticate: mocks.authenticateUser,
-      setSession: mocks.setUserSession,
-    })
+      expect(loginResponse.status).toBe(200)
+      const cookie = requestCookie(loginResponse)
+      const loginBody = await loginResponse.json()
+      expect(loginBody).toEqual({
+        user: {
+          id: user.id.toString(),
+          email: user.email,
+          name: user.displayName,
+          role: 'USER',
+        },
+      })
 
-    await expect(login(event)).rejects.toMatchObject({
-      statusCode: 422,
-      code: 'VALIDATION_ERROR',
-      message: 'Request validation failed.',
-      fieldErrors: {
-        email: ['Enter a valid email address.'],
-        password: ['Password is required.'],
-        _form: ['Unrecognized key: "role"'],
-      },
-    })
-    expect(mocks.authenticateUser).not.toHaveBeenCalled()
-    expect(mocks.setUserSession).not.toHaveBeenCalled()
-  })
+      const sessionResponse = await fetch('/api/_auth/session', {
+        headers: { cookie },
+      })
+      const session = await sessionResponse.json()
 
-  it('clears the sealed cookie session on logout', async () => {
-    mocks.clearUserSession.mockResolvedValue(true)
-    const { createLogoutHandler } = await import('../../server/api/auth/logout.post')
-    const logout = createLogoutHandler({ clearSession: mocks.clearUserSession })
-
-    await expect(logout(event)).resolves.toEqual({ success: true })
-    expect(mocks.clearUserSession).toHaveBeenCalledWith(event)
-  })
-
-  it('rejects an anonymous request', async () => {
-    mocks.getUserSession.mockResolvedValue({})
-    const { requireAppUser } = await import('../../server/utils/auth')
-
-    await expect(
-      requireAppUser(event, {
-        getSession: mocks.getUserSession,
-        clearSession: mocks.clearUserSession,
-        findUserById: mocks.userFindUnique,
-      }),
-    ).rejects.toMatchObject({
-      statusCode: 401,
-      code: 'UNAUTHENTICATED',
+      expect(sessionResponse.status).toBe(200)
+      expect(session.user).toEqual(loginBody.user)
+      expect(session.loggedInAt).toEqual(expect.any(String))
+      expect(JSON.stringify(session)).not.toContain('passwordHash')
     })
   })
 
-  it('rejects a User session from an Administrator-only action', async () => {
-    mocks.getUserSession.mockResolvedValue({
-      user: { id: '7', email: 'user@example.com', name: 'User', role: 'USER' },
-    })
-    mocks.userFindUnique.mockResolvedValue({
-      id: 7n,
-      email: 'user@example.com',
-      displayName: 'User',
-      role: 'USER',
-      isActive: true,
-    })
-    const { requireRole } = await import('../../server/utils/auth')
+  it.each([
+    ['unknown user', 'missing@example.com', TEST_PASSWORD],
+    ['wrong password', 'engineer@example.com', 'Definitely-Wrong-123!'],
+    ['inactive user', 'inactive@example.com', TEST_PASSWORD],
+  ])('returns the same generic login error for %s', async (_caseName, email, password) => {
+    await withCleanDatabase(async () => {
+      await createUser({ email: 'engineer@example.com' })
+      await createUser({ email: 'inactive@example.com', isActive: false })
 
-    await expect(
-      requireRole(event, ['ADMIN'], {
-        getSession: mocks.getUserSession,
-        clearSession: mocks.clearUserSession,
-        findUserById: mocks.userFindUnique,
-      }),
-    ).rejects.toMatchObject({
-      statusCode: 403,
-      code: 'FORBIDDEN',
+      const response = await login(email, password)
+      const body = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(body).toMatchObject({
+        statusCode: 401,
+        data: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password.',
+        },
+      })
     })
   })
 
-  it('authorizes an active Administrator from the database, not stale cookie data', async () => {
-    mocks.getUserSession.mockResolvedValue({
-      user: { id: '8', email: 'old@example.com', name: 'Old Name', role: 'USER' },
-    })
-    mocks.userFindUnique.mockResolvedValue({
-      id: 8n,
-      email: 'admin@example.com',
-      displayName: 'Administrator',
-      role: 'ADMIN',
-      isActive: true,
-    })
-    const { requireRole } = await import('../../server/utils/auth')
+  it('expires the cookie on logout and leaves an anonymous session', async () => {
+    await withCleanDatabase(async () => {
+      await createUser({ email: 'engineer@example.com' })
+      const loginResponse = await login('engineer@example.com')
+      const cookie = requestCookie(loginResponse)
 
-    await expect(
-      requireRole(event, ['ADMIN'], {
-        getSession: mocks.getUserSession,
-        clearSession: mocks.clearUserSession,
-        findUserById: mocks.userFindUnique,
-      }),
-    ).resolves.toEqual({
-      id: '8',
-      email: 'admin@example.com',
-      name: 'Administrator',
-      role: 'ADMIN',
+      const logoutResponse = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { cookie },
+      })
+      const expiredCookie = logoutResponse.headers.get('set-cookie')
+
+      expect(logoutResponse.status).toBe(200)
+      expect(expiredCookie).toMatch(
+        /^nuxt-session=; Path=\/; HttpOnly; Secure; SameSite=Lax(?:;|$)/i,
+      )
+
+      const sessionResponse = await fetch('/api/_auth/session', {
+        headers: { cookie: expiredCookie!.split(';', 1)[0]! },
+      })
+      expect(sessionResponse.status).toBe(200)
+      await expect(sessionResponse.json()).resolves.not.toHaveProperty('user')
     })
   })
 
-  it('rejects a sealed session after its user is deactivated', async () => {
-    mocks.getUserSession.mockResolvedValue({
-      user: { id: '9', email: 'former@example.com', name: 'Former User', role: 'USER' },
-    })
-    mocks.userFindUnique.mockResolvedValue({
-      id: 9n,
-      email: 'former@example.com',
-      displayName: 'Former User',
-      role: 'USER',
-      isActive: false,
-    })
-    const { requireAppUser } = await import('../../server/utils/auth')
+  it('rejects an anonymous protected request', async () => {
+    const response = await fetch('/api/test-auth/protected')
+    const body = await response.json()
 
-    await expect(
-      requireAppUser(event, {
-        getSession: mocks.getUserSession,
-        clearSession: mocks.clearUserSession,
-        findUserById: mocks.userFindUnique,
-      }),
-    ).rejects.toMatchObject({
-      statusCode: 401,
-      code: 'UNAUTHENTICATED',
+    expect(response.status).toBe(401)
+    expect(body).toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
     })
   })
+
+  it('enforces Administrator authorization against the current database role', async () => {
+    await withCleanDatabase(async () => {
+      await createUser({ email: 'user@example.com' })
+      await createUser({ email: 'admin@example.com', role: UserRole.ADMIN })
+
+      const userCookie = requestCookie(await login('user@example.com'))
+      const forbiddenResponse = await fetch('/api/test-auth/admin', {
+        headers: { cookie: userCookie },
+      })
+      expect(forbiddenResponse.status).toBe(403)
+
+      const adminCookie = requestCookie(await login('admin@example.com'))
+      const allowedResponse = await fetch('/api/test-auth/admin', {
+        headers: { cookie: adminCookie },
+      })
+      expect(allowedResponse.status).toBe(200)
+      await expect(allowedResponse.json()).resolves.toMatchObject({
+        user: { email: 'admin@example.com', role: 'ADMIN' },
+      })
+    })
+  })
+
+  it('rejects and clears a sealed session when its database user is deactivated', async () => {
+    await withCleanDatabase(async () => {
+      const user = await createUser({ email: 'former@example.com' })
+      const cookie = requestCookie(await login(user.email))
+      await prisma.user.update({ where: { id: user.id }, data: { isActive: false } })
+
+      const response = await fetch('/api/_auth/session', {
+        headers: { cookie },
+      })
+
+      expect(response.status).toBe(401)
+      const clearedCookie = response.headers.get('set-cookie')
+      expect(clearedCookie).toMatch(
+        /^nuxt-session=; Path=\/; HttpOnly; Secure; SameSite=Lax(?:;|$)/i,
+      )
+      await expect(response.json()).resolves.toMatchObject({
+        data: { code: 'UNAUTHENTICATED' },
+      })
+
+      const anonymousSessionResponse = await fetch('/api/_auth/session', {
+        headers: { cookie: clearedCookie!.split(';', 1)[0]! },
+      })
+      await expect(anonymousSessionResponse.json()).resolves.not.toHaveProperty('user')
+    })
+  })
+})
+
+afterAll(async () => {
+  await prisma.$disconnect()
 })

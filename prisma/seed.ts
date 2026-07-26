@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { hash } from 'argon2'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient, UserRole } from '../generated/prisma/client'
+import { resolveAdminSeedConfig } from './seed-config'
 
 const connectionString = process.env.DATABASE_URL
 
@@ -13,43 +14,35 @@ const adapter = new PrismaPg({ connectionString })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
-  const displayName = process.env.ADMIN_NAME?.trim()
-  const password = process.env.ADMIN_PASSWORD
+  const administrator = resolveAdminSeedConfig(process.env)
 
-  if (!email && !displayName && !password) {
+  if (!administrator) {
     console.info(
       'Administrator seed skipped: ADMIN_EMAIL, ADMIN_NAME, and ADMIN_PASSWORD are not set.',
     )
     return
   }
 
-  if (!email || !displayName || !password) {
-    throw new Error(
-      'ADMIN_EMAIL, ADMIN_NAME, and ADMIN_PASSWORD must all be set to seed an administrator.',
-    )
-  }
-
-  const passwordHash = await hash(password)
+  const passwordHash = await hash(administrator.password)
 
   await prisma.user.upsert({
-    where: { email },
+    where: { email: administrator.email },
     create: {
-      email,
-      displayName,
+      email: administrator.email,
+      displayName: administrator.displayName,
       passwordHash,
       role: UserRole.ADMIN,
       isActive: true,
     },
     update: {
-      displayName,
+      displayName: administrator.displayName,
       passwordHash,
       role: UserRole.ADMIN,
       isActive: true,
     },
   })
 
-  console.info(`Administrator ${email} is ready.`)
+  console.info(`Administrator ${administrator.email} is ready.`)
 }
 
 main()

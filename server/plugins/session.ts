@@ -1,4 +1,4 @@
-import { requireAppUser } from '../utils/auth'
+import { refreshAppUser } from '../utils/auth'
 
 export default defineNitroPlugin(() => {
   sessionHooks.hook('fetch', async (session, event) => {
@@ -6,6 +6,6 @@ export default defineNitroPlugin(() => {
       return
     }
 
-    session.user = await requireAppUser(event)
+    session.user = await refreshAppUser(event, session)
   })
 })

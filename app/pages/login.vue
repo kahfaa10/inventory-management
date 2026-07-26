@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
-import type { LoginInput } from '../../shared/schemas/auth'
-import { loginSchema } from '../../shared/schemas/auth'
+import type { LoginInput } from '#shared/schemas/auth'
+import { loginSchema } from '#shared/schemas/auth'
 
 const route = useRoute()
 const { fetch } = useUserSession()
