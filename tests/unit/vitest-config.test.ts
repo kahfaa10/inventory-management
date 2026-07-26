@@ -20,11 +20,13 @@ describe('Vitest configuration', () => {
     expect(nuxtProject?.test?.exclude).toEqual([
       'tests/nuxt/auth-routes.test.ts',
       'tests/nuxt/master-api.test.ts',
+      'tests/nuxt/stock-balance-api.test.ts',
     ])
     expect(nuxtHttpProject?.test?.environment).toBe('node')
     expect(nuxtHttpProject?.test?.include).toEqual([
       'tests/nuxt/auth-routes.test.ts',
       'tests/nuxt/master-api.test.ts',
+      'tests/nuxt/stock-balance-api.test.ts',
     ])
     expect(integrationProject?.test?.include).toEqual(['tests/integration/**/*.{test,spec}.ts'])
     expect(nuxtProject?.plugins).not.toHaveLength(0)
