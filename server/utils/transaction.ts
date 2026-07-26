@@ -1,4 +1,5 @@
 import { Prisma } from '../../generated/prisma/client'
+import { ApiError } from './api-error'
 import { prisma } from './prisma'
 
 export const MAX_SERIALIZABLE_RETRIES = 3
@@ -37,6 +38,14 @@ function isSerializableConflict(error: unknown): boolean {
   return retryableSqlState(error)
 }
 
+function exhaustedConcurrencyError(): ApiError {
+  return new ApiError(
+    409,
+    'CONCURRENT_TRANSACTION_CONFLICT',
+    'The transaction conflicted with another request. Please try again.',
+  )
+}
+
 export function createInventoryTransactionRunner(client: TransactionHost) {
   return async function run<T>(operation: InventoryOperation<T>): Promise<T> {
     for (let retry = 0; ; retry += 1) {
@@ -45,9 +54,10 @@ export function createInventoryTransactionRunner(client: TransactionHost) {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         })
       } catch (error) {
-        if (!isSerializableConflict(error) || retry >= MAX_SERIALIZABLE_RETRIES) {
+        if (!isSerializableConflict(error)) {
           throw error
         }
+        if (retry >= MAX_SERIALIZABLE_RETRIES) throw exhaustedConcurrencyError()
       }
     }
   }

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { assertSafeTestDatabaseUrl } from '../tests/helpers/database-url'
 
 interface NuxtTestProcessOptions {
@@ -8,6 +9,20 @@ interface NuxtTestProcessOptions {
   vitestCliPath: string
 }
 
+const exactTestFilePattern = /\.(?:test|spec)\.[cm]?[jt]sx?$/
+
+function validateExactTargetedTestPaths(argumentsToForward: readonly string[]): void {
+  for (const argument of argumentsToForward) {
+    if (
+      exactTestFilePattern.test(argument) &&
+      !/[*?[\]{}]/.test(argument) &&
+      !existsSync(argument)
+    ) {
+      throw new Error(`Targeted test file does not exist: ${argument}`)
+    }
+  }
+}
+
 export function createNuxtTestProcesses({
   environment,
   forwardedArguments,
@@ -15,6 +30,7 @@ export function createNuxtTestProcesses({
   prismaCliPath,
   vitestCliPath,
 }: NuxtTestProcessOptions) {
+  validateExactTargetedTestPaths(forwardedArguments)
   const testDatabaseUrl = assertSafeTestDatabaseUrl(
     environment.TEST_DATABASE_URL,
     environment.DATABASE_URL,

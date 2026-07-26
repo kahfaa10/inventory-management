@@ -138,15 +138,39 @@ describe('serializable inventory transactions', () => {
     expect(transaction).toHaveBeenCalledOnce()
   })
 
-  it('stops after the third P2034 retry', async () => {
-    const error = new Prisma.PrismaClientKnownRequestError('write conflict', {
-      code: 'P2034',
-      clientVersion: '7.8.0',
-    })
+  it.each([
+    [
+      'P2034',
+      new Prisma.PrismaClientKnownRequestError('write conflict', {
+        code: 'P2034',
+        clientVersion: '7.8.0',
+      }),
+    ],
+    [
+      'P2010/40001',
+      new Prisma.PrismaClientKnownRequestError('Raw query failed', {
+        code: 'P2010',
+        clientVersion: '7.8.0',
+        meta: { database_error: { code: '40001' } },
+      }),
+    ],
+    [
+      'P2010/40P01',
+      new Prisma.PrismaClientKnownRequestError('Raw query failed', {
+        code: 'P2010',
+        clientVersion: '7.8.0',
+        meta: { database_error: { code: '40P01' } },
+      }),
+    ],
+  ])('translates exhausted %s retries into a stable HTTP 409 error', async (_case, error) => {
     const transaction = vi.fn().mockRejectedValue(error)
     const run = createInventoryTransactionRunner({ $transaction: transaction })
 
-    await expect(run(async () => 'unused')).rejects.toBe(error)
+    await expect(run(async () => 'unused')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'CONCURRENT_TRANSACTION_CONFLICT',
+      message: 'The transaction conflicted with another request. Please try again.',
+    })
     expect(transaction).toHaveBeenCalledTimes(MAX_SERIALIZABLE_RETRIES + 1)
   })
 })

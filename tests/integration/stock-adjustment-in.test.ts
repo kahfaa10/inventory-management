@@ -280,6 +280,81 @@ describe('stock adjustment in service', () => {
       await expect(getStockBalance(prisma, data.detail.id, data.rack.id)).resolves.toBe(9)
     })
   })
+
+  it('serializes concurrent cancellation without duplicate reversals', async () => {
+    await withCleanDatabase(async () => {
+      const data = await fixture()
+      const draft = await createStockAdjustmentIn(
+        data.user.id,
+        draftInput({ detail: data.detail.id, rack: data.rack.id }),
+      )
+      await completeStockAdjustmentIn(draft.id, data.user.id)
+
+      const results = await Promise.all([
+        cancelStockAdjustmentIn(draft.id, data.admin.id),
+        cancelStockAdjustmentIn(draft.id, data.admin.id),
+      ])
+
+      expect(results.every(({ status }) => status === TransactionStatus.CANCELLED)).toBe(true)
+      const movements = await prisma.stockMovement.findMany({
+        where: { transactionId: BigInt(draft.id) },
+        orderBy: { id: 'asc' },
+      })
+      expect(movements).toHaveLength(2)
+      expect(movements[1]).toMatchObject({
+        movementPurpose: MovementPurpose.CANCELLATION_REVERSAL,
+        reversalOfId: movements[0]!.id,
+        quantityIn: 0,
+        quantityOut: 10,
+      })
+      await expect(getStockBalance(prisma, data.detail.id, data.rack.id)).resolves.toBe(0)
+    })
+  })
+
+  it('serializes completion racing cancellation to a valid cancelled ledger state', async () => {
+    await withCleanDatabase(async () => {
+      const data = await fixture()
+      const draft = await createStockAdjustmentIn(
+        data.user.id,
+        draftInput({ detail: data.detail.id, rack: data.rack.id }),
+      )
+
+      const [completion, cancellation] = await Promise.allSettled([
+        completeStockAdjustmentIn(draft.id, data.user.id),
+        cancelStockAdjustmentIn(draft.id, data.admin.id),
+      ])
+
+      expect(cancellation.status).toBe('fulfilled')
+      if (cancellation.status === 'fulfilled') {
+        expect(cancellation.value.status).toBe(TransactionStatus.CANCELLED)
+      }
+      if (completion.status === 'rejected') {
+        expect(completion.reason).toMatchObject({
+          statusCode: 409,
+          code: 'INVALID_TRANSACTION_STATE',
+        })
+      }
+
+      const header = await prisma.stockAdjustmentIn.findUniqueOrThrow({
+        where: { id: BigInt(draft.id) },
+      })
+      expect(header.status).toBe(TransactionStatus.CANCELLED)
+      const movements = await prisma.stockMovement.findMany({
+        where: { transactionId: BigInt(draft.id) },
+        orderBy: { id: 'asc' },
+      })
+      expect([0, 2]).toContain(movements.length)
+      if (movements.length === 2) {
+        expect(movements[1]).toMatchObject({
+          movementPurpose: MovementPurpose.CANCELLATION_REVERSAL,
+          reversalOfId: movements[0]!.id,
+          quantityIn: 0,
+          quantityOut: 10,
+        })
+      }
+      await expect(getStockBalance(prisma, data.detail.id, data.rack.id)).resolves.toBe(0)
+    })
+  })
 })
 
 afterAll(async () => {

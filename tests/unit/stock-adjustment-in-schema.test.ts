@@ -3,6 +3,7 @@ import {
   stockAdjustmentInCreateSchema,
   stockAdjustmentInListQuerySchema,
 } from '../../shared/schemas/stock-adjustment-in'
+import { POSTGRES_SIGNED_INTEGER_MAX } from '../../shared/schemas/common'
 
 const validInput = {
   transactionDate: '2026-07-19',
@@ -35,6 +36,21 @@ describe('stock adjustment in schemas', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts the PostgreSQL Int maximum and rejects the next integer', () => {
+    expect(
+      stockAdjustmentInCreateSchema.safeParse({
+        ...validInput,
+        details: [{ ...validInput.details[0], quantity: POSTGRES_SIGNED_INTEGER_MAX }],
+      }).success,
+    ).toBe(true)
+    expect(
+      stockAdjustmentInCreateSchema.safeParse({
+        ...validInput,
+        details: [{ ...validInput.details[0], quantity: POSTGRES_SIGNED_INTEGER_MAX + 1 }],
+      }).success,
+    ).toBe(false)
+  })
+
   it('requires at least one detail and rejects mass-assignment fields', () => {
     expect(stockAdjustmentInCreateSchema.safeParse({ ...validInput, details: [] }).success).toBe(
       false,
@@ -63,5 +79,9 @@ describe('stock adjustment in schemas', () => {
         dateTo: '2026-07-19',
       }).success,
     ).toBe(false)
+  })
+
+  it('does not inherit the master-only isActive list filter', () => {
+    expect(stockAdjustmentInListQuerySchema.safeParse({ isActive: true }).success).toBe(false)
   })
 })

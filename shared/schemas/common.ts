@@ -3,6 +3,7 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../constants/app'
 import { VALIDATION_MESSAGES } from '../validation/messages'
 
 export const POSTGRES_SIGNED_BIGINT_MAX = '9223372036854775807'
+export const POSTGRES_SIGNED_INTEGER_MAX = 2_147_483_647
 export const MAX_SAFE_PAGE = Math.floor(
   (Number.MAX_SAFE_INTEGER - MAX_PAGE_SIZE) / MAX_PAGE_SIZE + 1,
 )
@@ -22,6 +23,12 @@ export const idSchema = z
         VALIDATION_MESSAGES.invalidId,
       ),
   )
+
+export const positiveQuantitySchema = z
+  .number()
+  .int(VALIDATION_MESSAGES.quantityPositive)
+  .positive(VALIDATION_MESSAGES.quantityPositive)
+  .max(POSTGRES_SIGNED_INTEGER_MAX, VALIDATION_MESSAGES.quantityMaximum)
 
 const queryBooleanSchema = z
   .union([z.boolean(), z.enum(['true', 'false'])])

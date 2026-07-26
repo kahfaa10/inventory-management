@@ -82,4 +82,19 @@ describe('Nuxt test processes', () => {
       }),
     ).toThrow('TEST_DATABASE_URL must not equal DATABASE_URL')
   })
+
+  it('fails before migration when an exact targeted test path does not exist', () => {
+    expect(() =>
+      createNuxtTestProcesses({
+        environment: {
+          DATABASE_URL: developmentUrl,
+          TEST_DATABASE_URL: testUrl,
+        },
+        forwardedArguments: ['tests/nuxt/definitely-mistyped.test.ts'],
+        nodeExecutable: '/path/to/node',
+        prismaCliPath: '/path/to/prisma-cli.js',
+        vitestCliPath: '/path/to/vitest-cli.mjs',
+      }),
+    ).toThrow('Targeted test file does not exist: tests/nuxt/definitely-mistyped.test.ts')
+  })
 })

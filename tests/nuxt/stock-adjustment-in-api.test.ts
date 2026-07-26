@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { UserRole } from '../../generated/prisma/client'
 import { getStockBalance } from '../../server/services/stock.service'
+import { POSTGRES_SIGNED_INTEGER_MAX } from '../../shared/schemas/common'
 import { prisma, withCleanDatabase } from '../helpers/database'
 
 const TEST_PASSWORD = 'Correct-Horse-123!'
@@ -215,9 +216,36 @@ describe('Stock Adjustment In API over Nitro HTTP', () => {
       const cookie = await login(fixture.user.email)
       const body = adjustmentBody(fixture)
 
+      const maximumResponse = await request('/api/stock-adjustment-ins', {
+        cookie,
+        method: 'POST',
+        body: {
+          ...body,
+          details: [
+            {
+              ...body.details[0],
+              quantity: POSTGRES_SIGNED_INTEGER_MAX,
+            },
+          ],
+        },
+      })
+      expect(maximumResponse.status).toBe(201)
+      await expect(maximumResponse.json()).resolves.toMatchObject({
+        details: [{ quantity: POSTGRES_SIGNED_INTEGER_MAX }],
+      })
+
       for (const invalidBody of [
         { ...body, status: 'COMPLETED' },
         { ...body, details: [{ ...body.details[0], quantity: 0 }] },
+        {
+          ...body,
+          details: [
+            {
+              ...body.details[0],
+              quantity: POSTGRES_SIGNED_INTEGER_MAX + 1,
+            },
+          ],
+        },
         { ...body, details: [] },
       ]) {
         const response = await request('/api/stock-adjustment-ins', {
@@ -232,6 +260,9 @@ describe('Stock Adjustment In API over Nitro HTTP', () => {
       }
 
       expect((await request('/api/stock-adjustment-ins?unexpected=true', { cookie })).status).toBe(
+        422,
+      )
+      expect((await request('/api/stock-adjustment-ins?isActive=true', { cookie })).status).toBe(
         422,
       )
       expect((await request('/api/stock-adjustment-ins/not-a-number', { cookie })).status).toBe(422)

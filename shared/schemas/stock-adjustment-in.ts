@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { TRANSACTION_STATUSES } from '../enums/inventory'
-import { VALIDATION_MESSAGES } from '../validation/messages'
-import { idSchema, listQuerySchema } from './common'
+import { idSchema, listQuerySchema, positiveQuantitySchema } from './common'
 
 const transactionDateSchema = z
   .string()
@@ -23,10 +22,7 @@ const nullableNotesSchema = z
 export const stockAdjustmentInDetailSchema = z.strictObject({
   deviceDetailId: idSchema,
   destinationRackId: idSchema,
-  quantity: z
-    .number()
-    .int(VALIDATION_MESSAGES.quantityPositive)
-    .positive(VALIDATION_MESSAGES.quantityPositive),
+  quantity: positiveQuantitySchema,
   notes: nullableNotesSchema,
 })
 
@@ -42,6 +38,7 @@ export const stockAdjustmentInCreateSchema = z.strictObject({
 export const stockAdjustmentInUpdateSchema = stockAdjustmentInCreateSchema
 
 export const stockAdjustmentInListQuerySchema = listQuerySchema
+  .omit({ isActive: true })
   .extend({
     status: z.enum(TRANSACTION_STATUSES).optional(),
     customerId: idSchema.optional(),

@@ -6,4 +6,5 @@ export const VALIDATION_MESSAGES = {
   notFound: 'Record not found.',
   validationFailed: 'Request validation failed.',
   quantityPositive: 'Quantity must be greater than zero.',
+  quantityMaximum: 'Quantity must not exceed 2147483647.',
 } as const
