@@ -20,7 +20,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:nuxt": "vitest run --project nuxt",
-    "test:integration": "vitest run --project integration",
+    "test:integration": "tsx scripts/run-integration-tests.ts",
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

@@ -301,7 +301,7 @@ model StockMovement {
   quantityIn          Int             @default(0) @map("quantity_in")
   quantityOut         Int             @default(0) @map("quantity_out")
   movementPurpose     MovementPurpose @default(ORIGINAL) @map("movement_purpose")
-  reversalOfId        BigInt?         @map("reversal_of_id")
+  reversalOfId        BigInt?         @unique(map: "stock_movements_one_reversal_per_original_key") @map("reversal_of_id")
   createdById         BigInt          @map("created_by")
   createdAt           DateTime        @default(now()) @map("created_at")
   deviceDetail        DeviceDetail    @relation(fields: [deviceDetailId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -309,7 +309,7 @@ model StockMovement {
   customer            Customer?       @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy           User            @relation("StockMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   reversalOf          StockMovement?  @relation("StockMovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  reversals           StockMovement[] @relation("StockMovementReversal")
+  reversal            StockMovement?  @relation("StockMovementReversal")
 
   @@unique([transactionType, transactionDetailId, movementPurpose], map: "stock_movements_source_identity_key")
   @@index([deviceDetailId, rackId, transactionDate, createdAt], map: "stock_movements_balance_report_idx")

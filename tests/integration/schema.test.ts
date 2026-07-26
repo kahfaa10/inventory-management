@@ -198,13 +198,31 @@ describe('inventory schema', () => {
         prisma.stockMovement.create({
           data: {
             deviceDetailId: deviceDetail.id,
-            rackId: otherRack.id,
+            rackId: rack.id,
             transactionType: 'STOCK_ADJUSTMENT_IN',
             transactionId: 11n,
             transactionDetailId: 12n,
             transactionNumber: 'SAI-202607-0011',
             transactionDate: new Date('2026-07-26'),
             quantityOut: 4,
+            movementPurpose: 'CANCELLATION_REVERSAL',
+            reversalOfId: original.id,
+            createdById: user.id,
+          },
+        }),
+      ).rejects.toThrow()
+
+      await expect(
+        prisma.stockMovement.create({
+          data: {
+            deviceDetailId: deviceDetail.id,
+            rackId: otherRack.id,
+            transactionType: 'STOCK_ADJUSTMENT_IN',
+            transactionId: 11n,
+            transactionDetailId: 12n,
+            transactionNumber: 'SAI-202607-0011',
+            transactionDate: new Date('2026-07-26'),
+            quantityOut: 5,
             movementPurpose: 'CANCELLATION_REVERSAL',
             reversalOfId: original.id,
             createdById: user.id,
