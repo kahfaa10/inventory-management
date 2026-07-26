@@ -233,9 +233,7 @@ CREATE INDEX "stock_return_details_header_id_idx" ON "stock_return_details" ("st
 CREATE INDEX "stock_return_details_release_detail_idx" ON "stock_return_details" ("stock_release_detail_id", "stock_return_id");
 CREATE INDEX "stock_return_details_destination_rack_id_idx" ON "stock_return_details" ("destination_rack_id");
 CREATE UNIQUE INDEX "stock_movements_source_identity_key" ON "stock_movements" ("transaction_type", "transaction_detail_id", "movement_purpose");
-CREATE UNIQUE INDEX "stock_movements_one_reversal_per_original_key"
-    ON "stock_movements" ("reversal_of_id")
-    WHERE "reversal_of_id" IS NOT NULL;
+CREATE UNIQUE INDEX "stock_movements_one_reversal_per_original_key" ON "stock_movements" ("reversal_of_id");
 CREATE INDEX "stock_movements_balance_report_idx" ON "stock_movements" ("device_detail_id", "rack_id", "transaction_date", "created_at");
 CREATE INDEX "stock_movements_customer_report_idx" ON "stock_movements" ("customer_id", "transaction_date", "created_at");
 CREATE INDEX "stock_movements_transaction_lookup_idx" ON "stock_movements" ("transaction_number", "transaction_date");

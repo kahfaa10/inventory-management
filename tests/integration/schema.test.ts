@@ -265,21 +265,18 @@ describe('inventory schema', () => {
         }),
       ).rejects.toMatchObject({ code: 'P2002' })
 
-      await expect(
-        prisma.$queryRaw<Array<{ indexdef: string }>>`
-          SELECT indexdef
-          FROM pg_indexes
-          WHERE schemaname = current_schema()
-            AND tablename = 'stock_movements'
-            AND indexname = 'stock_movements_one_reversal_per_original_key'
-        `,
-      ).resolves.toEqual([
-        {
-          indexdef: expect.stringMatching(
-            /CREATE UNIQUE INDEX .* ON .*stock_movements.*reversal_of_id.*WHERE.*reversal_of_id.*IS NOT NULL/i,
-          ),
-        },
-      ])
+      const [reversalIndex] = await prisma.$queryRaw<Array<{ indexdef: string }>>`
+        SELECT indexdef
+        FROM pg_indexes
+        WHERE schemaname = current_schema()
+          AND tablename = 'stock_movements'
+          AND indexname = 'stock_movements_one_reversal_per_original_key'
+      `
+
+      expect(reversalIndex?.indexdef).toMatch(
+        /CREATE UNIQUE INDEX .* ON .*stock_movements.*reversal_of_id/i,
+      )
+      expect(reversalIndex?.indexdef).not.toMatch(/\bWHERE\b/i)
     })
   })
 
