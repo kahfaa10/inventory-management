@@ -3,6 +3,8 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import type { LoginInput } from '#shared/schemas/auth'
 import { loginSchema } from '#shared/schemas/auth'
 
+definePageMeta({ layout: false })
+
 const route = useRoute()
 const { fetch } = useUserSession()
 const credentials = reactive<LoginInput>({

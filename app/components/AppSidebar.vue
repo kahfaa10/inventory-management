@@ -1,4 +1,10 @@
 <script setup lang="ts">
+withDefaults(defineProps<{ mobile?: boolean }>(), { mobile: false })
+
+const emit = defineEmits<{
+  navigate: []
+}>()
+
 const { user, clear } = useUserSession()
 const masterLinks = [
   { label: 'Models', to: '/master/models', icon: 'i-lucide-box' },
@@ -12,13 +18,18 @@ const masterLinks = [
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
   await clear()
+  emit('navigate')
   await navigateTo('/login')
 }
 </script>
 
 <template>
   <aside
-    class="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-default bg-default lg:flex lg:flex-col"
+    :class="
+      mobile
+        ? 'flex h-full w-full flex-col bg-default'
+        : 'fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-default bg-default lg:flex lg:flex-col'
+    "
   >
     <div class="border-b border-default px-5 py-5">
       <UButton
@@ -43,6 +54,7 @@ async function logout() {
         variant="ghost"
         block
         class="mb-1 justify-start"
+        @click="emit('navigate')"
       />
     </nav>
 

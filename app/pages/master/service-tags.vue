@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
-import type { PaginatedResponse } from '#shared/types/api'
 import { serviceTagCreateSchema, serviceTagUpdateSchema } from '#shared/schemas/masters'
 import type { CustomerDto, ModelDto, ServiceTagDto } from '#shared/types/masters'
 import type { MasterListRow } from '../../components/masters/MasterList.vue'
 
-const resource = useMasterResource<ServiceTagDto>('/api/service-tags')
+const resource = useMasterResource<ServiceTagDto>('/api/service-tags', ['modelId', 'customerId'])
 const modalOpen = ref(false)
 const editingId = ref<string>()
 const selectedRecord = ref<ServiceTagDto>()
@@ -22,44 +21,54 @@ const columns: TableColumn<MasterListRow>[] = [
   { accessorKey: 'customer.customerName', header: 'Customer' },
   { accessorKey: 'description', header: 'Description' },
 ]
-const { data: models } = useFetch<PaginatedResponse<ModelDto>>('/api/models', {
-  query: { isActive: true, pageSize: 100 },
-})
-const { data: customers } = useFetch<PaginatedResponse<CustomerDto>>('/api/customers', {
-  query: { isActive: true, pageSize: 100 },
-})
+const {
+  data: models,
+  pending: modelsPending,
+  error: modelsError,
+} = useActiveMasterOptions<ModelDto>('/api/models')
+const {
+  data: customers,
+  pending: customersPending,
+  error: customersError,
+} = useActiveMasterOptions<CustomerDto>('/api/customers')
 const modelOptions = computed(() => {
-  const options = (models.value?.data ?? []).map((item) => ({
+  const options = (models.value ?? []).map((item) => ({
     label: item.modelName,
     value: item.id,
   }))
   const current = selectedRecord.value?.model
   if (current && !options.some((item) => item.value === current.id)) {
-    options.push({ label: `${current.modelName} (Inactive)`, value: current.id })
+    options.push({
+      label: current.isActive ? current.modelName : `${current.modelName} (Inactive)`,
+      value: current.id,
+    })
   }
   return options
 })
 const customerOptions = computed(() => {
   const options: { label: string; value: string | null }[] = [
     { label: 'No customer', value: null },
-    ...(customers.value?.data ?? []).map((item) => ({
+    ...(customers.value ?? []).map((item) => ({
       label: item.customerName,
       value: item.id,
     })),
   ]
   const current = selectedRecord.value?.customer
   if (current && !options.some((item) => item.value === current.id)) {
-    options.push({ label: `${current.customerName} (Inactive)`, value: current.id })
+    options.push({
+      label: current.isActive ? current.customerName : `${current.customerName} (Inactive)`,
+      value: current.id,
+    })
   }
   return options
 })
 const modelFilterOptions = computed(() => [
   { label: 'All models', value: '' },
-  ...modelOptions.value,
+  ...(models.value ?? []).map((item) => ({ label: item.modelName, value: item.id })),
 ])
 const customerFilterOptions = computed(() => [
   { label: 'All customers', value: '' },
-  ...(customers.value?.data ?? []).map((item) => ({ label: item.customerName, value: item.id })),
+  ...(customers.value ?? []).map((item) => ({ label: item.customerName, value: item.id })),
 ])
 
 useHead({ title: 'Service Tags | Mini Inventory' })
@@ -103,6 +112,14 @@ async function submit() {
       title="Service Tags"
       description="Manage customer service tags under their equipment model."
     />
+    <UAlert
+      v-if="modelsError || customersError"
+      class="mb-4"
+      color="error"
+      variant="soft"
+      title="Unable to load active Model or Customer options"
+      description="Refresh the page before creating or editing a Service Tag."
+    />
     <MastersMasterList
       v-model:search="resource.search.value"
       v-model:active-filter="resource.activeFilter.value"
@@ -123,12 +140,16 @@ async function submit() {
           :items="modelFilterOptions"
           aria-label="Filter by model"
           class="w-44"
+          :loading="modelsPending"
+          :disabled="modelsPending || !!modelsError"
         />
         <USelect
           v-model="resource.filters.customerId"
           :items="customerFilterOptions"
           aria-label="Filter by customer"
           class="w-44"
+          :loading="customersPending"
+          :disabled="customersPending || !!customersError"
         />
       </template>
     </MastersMasterList>
@@ -141,10 +162,22 @@ async function submit() {
       @submit="submit"
     >
       <UFormField label="Model" name="modelId" required>
-        <USelect v-model="state.modelId" :items="modelOptions" class="w-full" />
+        <USelect
+          v-model="state.modelId"
+          :items="modelOptions"
+          class="w-full"
+          :loading="modelsPending"
+          :disabled="modelsPending || !!modelsError"
+        />
       </UFormField>
       <UFormField label="Customer" name="customerId">
-        <USelect v-model="state.customerId" :items="customerOptions" class="w-full" />
+        <USelect
+          v-model="state.customerId"
+          :items="customerOptions"
+          class="w-full"
+          :loading="customersPending"
+          :disabled="customersPending || !!customersError"
+        />
       </UFormField>
       <UFormField label="Service Tag" name="serviceTag" required>
         <UInput v-model="state.serviceTag" class="w-full" />

@@ -8,10 +8,25 @@ import {
   rackCreateSchema,
   serviceTagCreateSchema,
 } from '../../shared/schemas/masters'
+import { idSchema, listQuerySchema, MAX_SAFE_PAGE } from '../../shared/schemas/common'
 import { serializeBigInts } from '../../server/utils/dto'
 import { parseBody } from '../../server/utils/validation'
 
 describe('master validation schemas', () => {
+  it('rejects identifiers outside the positive signed PostgreSQL BIGINT range', () => {
+    expect(idSchema.safeParse('9223372036854775807').success).toBe(true)
+    expect(idSchema.safeParse('9223372036854775808').success).toBe(false)
+  })
+
+  it('bounds pages so pagination offsets remain safe JavaScript integers', () => {
+    expect(
+      listQuerySchema.safeParse({ page: String(MAX_SAFE_PAGE), pageSize: '100' }).success,
+    ).toBe(true)
+    expect(
+      listQuerySchema.safeParse({ page: String(MAX_SAFE_PAGE + 1), pageSize: '100' }).success,
+    ).toBe(false)
+  })
+
   it.each(['', '   '])('rejects blank model name %j', (modelName) => {
     expect(modelCreateSchema.safeParse({ modelName }).success).toBe(false)
   })

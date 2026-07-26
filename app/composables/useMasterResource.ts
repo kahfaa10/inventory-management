@@ -5,14 +5,19 @@ interface MasterRecord {
   isActive: boolean
 }
 
-export function useMasterResource<T extends MasterRecord>(endpoint: string) {
+export function useMasterResource<T extends MasterRecord>(
+  endpoint: string,
+  filterNames: readonly string[] = [],
+) {
   const toast = useToast()
   const { user } = useUserSession()
   const search = ref('')
   const activeFilter = ref('all')
   const page = ref(1)
   const pageSize = 20
-  const filters = reactive<Record<string, string>>({})
+  const filters = reactive<Record<string, string>>(
+    Object.fromEntries(filterNames.map((name) => [name, ''])),
+  )
   const submitting = ref(false)
   const canWrite = computed(() => user.value?.role === 'ADMIN')
   const query = computed(() => ({
@@ -24,7 +29,7 @@ export function useMasterResource<T extends MasterRecord>(endpoint: string) {
   }))
   const { data, pending, refresh } = useFetch<PaginatedResponse<T>>(endpoint, { query })
 
-  watch([search, activeFilter], () => {
+  watch([search, activeFilter, ...filterNames.map((name) => () => filters[name])], () => {
     page.value = 1
   })
 

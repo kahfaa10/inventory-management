@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
-import type { PaginatedResponse } from '#shared/types/api'
 import { deviceDetailCreateSchema, deviceDetailUpdateSchema } from '#shared/schemas/masters'
 import type { DeviceDetailDto, DeviceDto } from '#shared/types/masters'
 import type { MasterListRow } from '../../components/masters/MasterList.vue'
 
-const resource = useMasterResource<DeviceDetailDto>('/api/device-details')
+const resource = useMasterResource<DeviceDetailDto>('/api/device-details', ['deviceId'])
 const modalOpen = ref(false)
 const editingId = ref<string>()
 const selectedRecord = ref<DeviceDetailDto>()
@@ -23,23 +22,28 @@ const columns: TableColumn<MasterListRow>[] = [
   { accessorKey: 'dpn', header: 'DP/N' },
   { accessorKey: 'specification', header: 'Specification' },
 ]
-const { data: devices } = useFetch<PaginatedResponse<DeviceDto>>('/api/devices', {
-  query: { isActive: true, pageSize: 100 },
-})
+const {
+  data: devices,
+  pending: devicesPending,
+  error: devicesError,
+} = useActiveMasterOptions<DeviceDto>('/api/devices')
 const deviceOptions = computed(() => {
-  const options = (devices.value?.data ?? []).map((item) => ({
+  const options = (devices.value ?? []).map((item) => ({
     label: item.deviceName,
     value: item.id,
   }))
   const current = selectedRecord.value?.device
   if (current && !options.some((item) => item.value === current.id)) {
-    options.push({ label: `${current.deviceName} (Inactive)`, value: current.id })
+    options.push({
+      label: current.isActive ? current.deviceName : `${current.deviceName} (Inactive)`,
+      value: current.id,
+    })
   }
   return options
 })
 const deviceFilterOptions = computed(() => [
   { label: 'All devices', value: '' },
-  ...deviceOptions.value,
+  ...(devices.value ?? []).map((item) => ({ label: item.deviceName, value: item.id })),
 ])
 
 useHead({ title: 'Device Details | Mini Inventory' })
@@ -85,6 +89,14 @@ async function submit() {
       title="Device Details"
       description="Manage inventory items and their part specifications."
     />
+    <UAlert
+      v-if="devicesError"
+      class="mb-4"
+      color="error"
+      variant="soft"
+      title="Unable to load active Device options"
+      description="Refresh the page before creating or editing a Device Detail."
+    />
     <MastersMasterList
       v-model:search="resource.search.value"
       v-model:active-filter="resource.activeFilter.value"
@@ -105,6 +117,8 @@ async function submit() {
           :items="deviceFilterOptions"
           aria-label="Filter by device"
           class="w-44"
+          :loading="devicesPending"
+          :disabled="devicesPending || !!devicesError"
         />
       </template>
     </MastersMasterList>
@@ -117,7 +131,13 @@ async function submit() {
       @submit="submit"
     >
       <UFormField label="Device" name="deviceId" required>
-        <USelect v-model="state.deviceId" :items="deviceOptions" class="w-full" />
+        <USelect
+          v-model="state.deviceId"
+          :items="deviceOptions"
+          class="w-full"
+          :loading="devicesPending"
+          :disabled="devicesPending || !!devicesError"
+        />
       </UFormField>
       <div class="grid gap-4 sm:grid-cols-2">
         <UFormField label="Part Number" name="partNumber" required>

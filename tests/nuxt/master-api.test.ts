@@ -3,6 +3,7 @@ import { fetch, setup } from '@nuxt/test-utils/e2e'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { UserRole } from '../../generated/prisma/client'
+import { MAX_SAFE_PAGE } from '../../shared/schemas/common'
 import { prisma, withCleanDatabase } from '../helpers/database'
 
 const TEST_PASSWORD = 'Correct-Horse-123!'
@@ -203,6 +204,30 @@ describe('master data REST API', () => {
 
       const idResponse = await jsonRequest('/api/models/not-a-number', adminCookie)
       expect(idResponse.status).toBe(422)
+
+      const oversizedIdResponse = await jsonRequest('/api/models/9223372036854775808', adminCookie)
+      expect(oversizedIdResponse.status).toBe(422)
+      await expect(oversizedIdResponse.json()).resolves.toMatchObject({
+        data: { code: 'VALIDATION_ERROR' },
+      })
+
+      const oversizedFilterResponse = await jsonRequest(
+        '/api/service-tags?modelId=9223372036854775808',
+        adminCookie,
+      )
+      expect(oversizedFilterResponse.status).toBe(422)
+      await expect(oversizedFilterResponse.json()).resolves.toMatchObject({
+        data: { code: 'VALIDATION_ERROR' },
+      })
+
+      const oversizedPageResponse = await jsonRequest(
+        `/api/devices?page=${MAX_SAFE_PAGE + 1}&pageSize=100`,
+        adminCookie,
+      )
+      expect(oversizedPageResponse.status).toBe(422)
+      await expect(oversizedPageResponse.json()).resolves.toMatchObject({
+        data: { code: 'VALIDATION_ERROR' },
+      })
     })
   })
 
