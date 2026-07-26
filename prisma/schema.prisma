@@ -89,9 +89,8 @@ model Customer {
   id                 BigInt              @id @default(autoincrement())
   customerName       String              @unique(map: "customers_customer_name_key") @map("customer_name")
   address            String?
-  contactName        String?             @map("contact_name")
-  contactPhone       String?             @map("contact_phone")
-  contactEmail       String?             @map("contact_email")
+  contactPerson      String?             @map("contact_person")
+  contactNumber      String?             @map("contact_number")
   description        String?
   isActive           Boolean             @default(true) @map("is_active")
   createdAt          DateTime            @default(now()) @map("created_at")
@@ -136,17 +135,17 @@ model DeviceDetail {
 }
 
 model Rack {
-  id                       BigInt                    @id @default(autoincrement())
-  rackCode                 String                    @unique(map: "racks_rack_code_key") @map("rack_code")
-  rackName                 String                    @map("rack_name")
-  description              String?
-  isActive                 Boolean                   @default(true) @map("is_active")
-  createdAt                DateTime                  @default(now()) @map("created_at")
-  updatedAt                DateTime                  @updatedAt @map("updated_at")
-  stockAdjustmentInDetails StockAdjustmentInDetail[]
-  stockReleaseDetails      StockReleaseDetail[]
-  stockReturnDetails       StockReturnDetail[]
-  stockMovements           StockMovement[]
+  id                            BigInt                    @id @default(autoincrement())
+  rackCode                      String                    @unique(map: "racks_rack_code_key") @map("rack_code")
+  rackName                      String                    @map("rack_name")
+  description                   String?
+  isActive                      Boolean                   @default(true) @map("is_active")
+  createdAt                     DateTime                  @default(now()) @map("created_at")
+  updatedAt                     DateTime                  @updatedAt @map("updated_at")
+  stockAdjustmentInDetails      StockAdjustmentInDetail[]
+  stockReleaseDetails           StockReleaseDetail[]
+  destinationStockReturnDetails StockReturnDetail[]       @relation("StockReturnDestinationRack")
+  stockMovements                StockMovement[]
 
   @@map("racks")
 }
@@ -189,7 +188,7 @@ model StockAdjustmentInDetail {
   deviceDetailId      BigInt            @map("device_detail_id")
   rackId              BigInt            @map("rack_id")
   quantity            Int
-  description         String?
+  notes               String?
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
   stockAdjustmentIn   StockAdjustmentIn @relation(fields: [stockAdjustmentInId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -236,7 +235,7 @@ model StockReleaseDetail {
   deviceDetailId     BigInt              @map("device_detail_id")
   rackId             BigInt              @map("rack_id")
   releasedQuantity   Int                 @map("released_quantity")
-  description        String?
+  notes              String?
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   stockRelease       StockRelease        @relation(fields: [stockReleaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -273,18 +272,18 @@ model StockReturnDetail {
   id                   BigInt             @id @default(autoincrement())
   stockReturnId        BigInt             @map("stock_return_id")
   stockReleaseDetailId BigInt             @map("stock_release_detail_id")
-  rackId               BigInt             @map("rack_id")
+  destinationRackId    BigInt             @map("destination_rack_id")
   returnQuantity       Int                @map("return_quantity")
-  description          String?
+  notes                String?
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
   stockReturn          StockReturn        @relation(fields: [stockReturnId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   stockReleaseDetail   StockReleaseDetail @relation(fields: [stockReleaseDetailId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  rack                 Rack               @relation(fields: [rackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  destinationRack      Rack               @relation("StockReturnDestinationRack", fields: [destinationRackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([stockReturnId], map: "stock_return_details_header_id_idx")
   @@index([stockReleaseDetailId, stockReturnId], map: "stock_return_details_release_detail_idx")
-  @@index([rackId], map: "stock_return_details_rack_id_idx")
+  @@index([destinationRackId], map: "stock_return_details_destination_rack_id_idx")
   @@map("stock_return_details")
 }
 
@@ -294,9 +293,11 @@ model StockMovement {
   rackId              BigInt          @map("rack_id")
   customerId          BigInt?         @map("customer_id")
   transactionType     TransactionType @map("transaction_type")
+  transactionId       BigInt          @map("transaction_id")
   transactionDetailId BigInt          @map("transaction_detail_id")
   transactionNumber   String          @map("transaction_number")
   transactionDate     DateTime        @map("transaction_date") @db.Date
+  engineerName        String?         @map("engineer_name")
   quantityIn          Int             @default(0) @map("quantity_in")
   quantityOut         Int             @default(0) @map("quantity_out")
   movementPurpose     MovementPurpose @default(ORIGINAL) @map("movement_purpose")
@@ -314,6 +315,7 @@ model StockMovement {
   @@index([deviceDetailId, rackId, transactionDate, createdAt], map: "stock_movements_balance_report_idx")
   @@index([customerId, transactionDate, createdAt], map: "stock_movements_customer_report_idx")
   @@index([transactionNumber, transactionDate], map: "stock_movements_transaction_lookup_idx")
+  @@index([transactionType, transactionId], map: "stock_movements_transaction_source_idx")
   @@index([reversalOfId], map: "stock_movements_reversal_of_id_idx")
   @@index([createdById], map: "stock_movements_created_by_idx")
   @@map("stock_movements")
