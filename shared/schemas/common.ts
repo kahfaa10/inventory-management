@@ -20,3 +20,15 @@ export const listQuerySchema = z.strictObject({
 
 export type ListQueryInput = z.input<typeof listQuerySchema>
 export type ListQuery = z.output<typeof listQuerySchema>
+
+export const serviceTagListQuerySchema = listQuerySchema.extend({
+  modelId: idSchema.optional(),
+  customerId: idSchema.optional(),
+})
+
+export const deviceDetailListQuerySchema = listQuerySchema.extend({
+  deviceId: idSchema.optional(),
+})
+
+export type ServiceTagListQueryInput = z.input<typeof serviceTagListQuerySchema>
+export type DeviceDetailListQueryInput = z.input<typeof deviceDetailListQuerySchema>

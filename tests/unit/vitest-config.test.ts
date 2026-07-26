@@ -17,9 +17,15 @@ describe('Vitest configuration', () => {
     expect(projects[0]?.test?.include).toEqual(['tests/unit/**/*.{test,spec}.ts'])
     expect(nuxtProject?.test?.environment).toBe('nuxt')
     expect(nuxtProject?.test?.include).toEqual(['tests/nuxt/**/*.{test,spec}.ts'])
-    expect(nuxtProject?.test?.exclude).toEqual(['tests/nuxt/auth-routes.test.ts'])
+    expect(nuxtProject?.test?.exclude).toEqual([
+      'tests/nuxt/auth-routes.test.ts',
+      'tests/nuxt/master-api.test.ts',
+    ])
     expect(nuxtHttpProject?.test?.environment).toBe('node')
-    expect(nuxtHttpProject?.test?.include).toEqual(['tests/nuxt/auth-routes.test.ts'])
+    expect(nuxtHttpProject?.test?.include).toEqual([
+      'tests/nuxt/auth-routes.test.ts',
+      'tests/nuxt/master-api.test.ts',
+    ])
     expect(integrationProject?.test?.include).toEqual(['tests/integration/**/*.{test,spec}.ts'])
     expect(nuxtProject?.plugins).not.toHaveLength(0)
     expect(nuxtProject?.test?.setupFiles).toEqual(

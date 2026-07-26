@@ -1,5 +1,13 @@
 import type { Prisma } from '../../generated/prisma/client'
-import { listQuerySchema, type ListQueryInput } from '../../shared/schemas/common'
+import type { ZodType } from 'zod'
+import {
+  deviceDetailListQuerySchema,
+  listQuerySchema,
+  serviceTagListQuerySchema,
+  type DeviceDetailListQueryInput,
+  type ListQueryInput,
+  type ServiceTagListQueryInput,
+} from '../../shared/schemas/common'
 import {
   customerCreateSchema,
   customerUpdateSchema,
@@ -55,11 +63,23 @@ type DeviceDetailRecord = Prisma.DeviceDetailGetPayload<{ include: typeof device
 
 function acknowledgeActor(actorId: ActorId) {
   const parsed = BigInt(actorId)
-  if (parsed <= 0n) throw new TypeError('Actor ID must be a positive integer.')
+  if (parsed <= BigInt(0)) throw new TypeError('Actor ID must be a positive integer.')
 }
 
-function pageArguments(query: ListQueryInput) {
-  const parsed = parseQuery(listQuerySchema, query)
+function pageArguments<T extends ListQueryInput>(schema: typeof listQuerySchema, query: T) {
+  const parsed = parseQuery(schema, query)
+  return {
+    query: parsed,
+    skip: (parsed.page - 1) * parsed.pageSize,
+    take: parsed.pageSize,
+  }
+}
+
+function pageArgumentsWithSchema<T>(
+  schema: ZodType<T>,
+  query: unknown,
+): { query: T; skip: number; take: number } {
+  const parsed = parseQuery(schema, query) as T & { page: number; pageSize: number }
   return {
     query: parsed,
     skip: (parsed.page - 1) * parsed.pageSize,
@@ -210,7 +230,7 @@ async function requireActiveDevice(id: string) {
 }
 
 export async function listModels(query: ListQueryInput = {}): Promise<PaginatedResponse<ModelDto>> {
-  const { query: parsed, skip, take } = pageArguments(query)
+  const { query: parsed, skip, take } = pageArguments(listQuerySchema, query)
   const where: Prisma.ModelWhereInput = {
     ...(parsed.search
       ? { modelName: { contains: parsed.search, mode: 'insensitive' as const } }
@@ -222,6 +242,12 @@ export async function listModels(query: ListQueryInput = {}): Promise<PaginatedR
     prisma.model.count({ where }),
   ])
   return { data: data.map(modelDto), page: parsed.page, pageSize: parsed.pageSize, total }
+}
+
+export async function getModel(id: string): Promise<ModelDto> {
+  const record = await prisma.model.findUnique({ where: { id: BigInt(id) } })
+  if (!record) throw notFoundError()
+  return modelDto(record)
 }
 
 export async function createModel(actorId: ActorId, input: ModelCreateInput): Promise<ModelDto> {
@@ -260,9 +286,9 @@ export async function updateModel(
 }
 
 export async function listServiceTags(
-  query: ListQueryInput = {},
+  query: ServiceTagListQueryInput = {},
 ): Promise<PaginatedResponse<ServiceTagDto>> {
-  const { query: parsed, skip, take } = pageArguments(query)
+  const { query: parsed, skip, take } = pageArgumentsWithSchema(serviceTagListQuerySchema, query)
   const where: Prisma.ServiceTagWhereInput = {
     ...(parsed.search
       ? {
@@ -278,6 +304,8 @@ export async function listServiceTags(
         }
       : {}),
     ...(parsed.isActive === undefined ? {} : { isActive: parsed.isActive }),
+    ...(parsed.modelId === undefined ? {} : { modelId: BigInt(parsed.modelId) }),
+    ...(parsed.customerId === undefined ? {} : { customerId: BigInt(parsed.customerId) }),
   }
   const [data, total] = await prisma.$transaction([
     prisma.serviceTag.findMany({
@@ -290,6 +318,15 @@ export async function listServiceTags(
     prisma.serviceTag.count({ where }),
   ])
   return { data: data.map(serviceTagDto), page: parsed.page, pageSize: parsed.pageSize, total }
+}
+
+export async function getServiceTag(id: string): Promise<ServiceTagDto> {
+  const record = await prisma.serviceTag.findUnique({
+    where: { id: BigInt(id) },
+    include: serviceTagInclude,
+  })
+  if (!record) throw notFoundError()
+  return serviceTagDto(record)
 }
 
 export async function createServiceTag(
@@ -358,7 +395,7 @@ export async function updateServiceTag(
 export async function listDevices(
   query: ListQueryInput = {},
 ): Promise<PaginatedResponse<DeviceDto>> {
-  const { query: parsed, skip, take } = pageArguments(query)
+  const { query: parsed, skip, take } = pageArguments(listQuerySchema, query)
   const where: Prisma.DeviceWhereInput = {
     ...(parsed.search
       ? { deviceName: { contains: parsed.search, mode: 'insensitive' as const } }
@@ -370,6 +407,12 @@ export async function listDevices(
     prisma.device.count({ where }),
   ])
   return { data: data.map(deviceDto), page: parsed.page, pageSize: parsed.pageSize, total }
+}
+
+export async function getDevice(id: string): Promise<DeviceDto> {
+  const record = await prisma.device.findUnique({ where: { id: BigInt(id) } })
+  if (!record) throw notFoundError()
+  return deviceDto(record)
 }
 
 export async function createDevice(actorId: ActorId, input: DeviceCreateInput): Promise<DeviceDto> {
@@ -408,9 +451,9 @@ export async function updateDevice(
 }
 
 export async function listDeviceDetails(
-  query: ListQueryInput = {},
+  query: DeviceDetailListQueryInput = {},
 ): Promise<PaginatedResponse<DeviceDetailDto>> {
-  const { query: parsed, skip, take } = pageArguments(query)
+  const { query: parsed, skip, take } = pageArgumentsWithSchema(deviceDetailListQuerySchema, query)
   const where: Prisma.DeviceDetailWhereInput = {
     ...(parsed.search
       ? {
@@ -423,6 +466,7 @@ export async function listDeviceDetails(
         }
       : {}),
     ...(parsed.isActive === undefined ? {} : { isActive: parsed.isActive }),
+    ...(parsed.deviceId === undefined ? {} : { deviceId: BigInt(parsed.deviceId) }),
   }
   const [data, total] = await prisma.$transaction([
     prisma.deviceDetail.findMany({
@@ -435,6 +479,15 @@ export async function listDeviceDetails(
     prisma.deviceDetail.count({ where }),
   ])
   return { data: data.map(deviceDetailDto), page: parsed.page, pageSize: parsed.pageSize, total }
+}
+
+export async function getDeviceDetail(id: string): Promise<DeviceDetailDto> {
+  const record = await prisma.deviceDetail.findUnique({
+    where: { id: BigInt(id) },
+    include: deviceDetailInclude,
+  })
+  if (!record) throw notFoundError()
+  return deviceDetailDto(record)
 }
 
 export async function createDeviceDetail(
@@ -493,7 +546,7 @@ export async function updateDeviceDetail(
 export async function listCustomers(
   query: ListQueryInput = {},
 ): Promise<PaginatedResponse<CustomerDto>> {
-  const { query: parsed, skip, take } = pageArguments(query)
+  const { query: parsed, skip, take } = pageArguments(listQuerySchema, query)
   const where: Prisma.CustomerWhereInput = {
     ...(parsed.search
       ? {
@@ -516,6 +569,12 @@ export async function listCustomers(
     prisma.customer.count({ where }),
   ])
   return { data: data.map(customerDto), page: parsed.page, pageSize: parsed.pageSize, total }
+}
+
+export async function getCustomer(id: string): Promise<CustomerDto> {
+  const record = await prisma.customer.findUnique({ where: { id: BigInt(id) } })
+  if (!record) throw notFoundError()
+  return customerDto(record)
 }
 
 export async function createCustomer(
@@ -563,7 +622,7 @@ export async function updateCustomer(
 }
 
 export async function listRacks(query: ListQueryInput = {}): Promise<PaginatedResponse<RackDto>> {
-  const { query: parsed, skip, take } = pageArguments(query)
+  const { query: parsed, skip, take } = pageArguments(listQuerySchema, query)
   const where: Prisma.RackWhereInput = {
     ...(parsed.search
       ? {
@@ -585,6 +644,12 @@ export async function listRacks(query: ListQueryInput = {}): Promise<PaginatedRe
     prisma.rack.count({ where }),
   ])
   return { data: data.map(rackDto), page: parsed.page, pageSize: parsed.pageSize, total }
+}
+
+export async function getRack(id: string): Promise<RackDto> {
+  const record = await prisma.rack.findUnique({ where: { id: BigInt(id) } })
+  if (!record) throw notFoundError()
+  return rackDto(record)
 }
 
 export async function createRack(actorId: ActorId, input: RackCreateInput): Promise<RackDto> {

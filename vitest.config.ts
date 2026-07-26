@@ -16,7 +16,7 @@ export default defineConfig({
         test: {
           name: 'nuxt',
           include: ['tests/nuxt/**/*.{test,spec}.ts'],
-          exclude: ['tests/nuxt/auth-routes.test.ts'],
+          exclude: ['tests/nuxt/auth-routes.test.ts', 'tests/nuxt/master-api.test.ts'],
           environment: 'nuxt',
           environmentOptions: {
             nuxt: {
@@ -28,7 +28,7 @@ export default defineConfig({
       {
         test: {
           name: 'nuxt-http',
-          include: ['tests/nuxt/auth-routes.test.ts'],
+          include: ['tests/nuxt/auth-routes.test.ts', 'tests/nuxt/master-api.test.ts'],
           environment: 'node',
           fileParallelism: false,
         },
