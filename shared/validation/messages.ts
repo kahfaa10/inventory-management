@@ -5,4 +5,5 @@ export const VALIDATION_MESSAGES = {
   inactiveMaster: 'Selected master data is inactive.',
   notFound: 'Record not found.',
   validationFailed: 'Request validation failed.',
+  quantityPositive: 'Quantity must be greater than zero.',
 } as const

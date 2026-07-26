@@ -37,8 +37,22 @@ export function createNuxtTestProcesses({
           'run',
           '--project',
           'nuxt',
+          '--passWithNoTests',
+          ...forwardedArguments,
+        ],
+        environment: {
+          ...environment,
+          VITEST: 'true',
+        },
+      },
+      {
+        command: nodeExecutable,
+        args: [
+          vitestCliPath,
+          'run',
           '--project',
           'nuxt-http',
+          '--passWithNoTests',
           ...forwardedArguments,
         ],
         environment: {

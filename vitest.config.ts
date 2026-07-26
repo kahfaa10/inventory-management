@@ -20,6 +20,7 @@ export default defineConfig({
             'tests/nuxt/auth-routes.test.ts',
             'tests/nuxt/master-api.test.ts',
             'tests/nuxt/stock-balance-api.test.ts',
+            'tests/nuxt/stock-adjustment-in-api.test.ts',
           ],
           environment: 'nuxt',
           environmentOptions: {
@@ -36,6 +37,7 @@ export default defineConfig({
             'tests/nuxt/auth-routes.test.ts',
             'tests/nuxt/master-api.test.ts',
             'tests/nuxt/stock-balance-api.test.ts',
+            'tests/nuxt/stock-adjustment-in-api.test.ts',
           ],
           environment: 'node',
           fileParallelism: false,

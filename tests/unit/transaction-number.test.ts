@@ -99,6 +99,45 @@ describe('serializable inventory transactions', () => {
     expect(transaction).toHaveBeenCalledOnce()
   })
 
+  it.each(['40001', '40P01'])(
+    'retries a raw-query PostgreSQL %s concurrency conflict wrapped as P2010',
+    async (databaseCode) => {
+      const conflict = new Prisma.PrismaClientKnownRequestError('Raw query failed', {
+        code: 'P2010',
+        clientVersion: '7.8.0',
+        meta: {
+          database_error: {
+            code: databaseCode,
+            message: 'concurrent transaction conflict',
+          },
+        },
+      })
+      const transaction = vi.fn().mockRejectedValueOnce(conflict).mockResolvedValue('posted')
+      const run = createInventoryTransactionRunner({ $transaction: transaction })
+
+      await expect(run(async () => 'unused')).resolves.toBe('posted')
+      expect(transaction).toHaveBeenCalledTimes(2)
+    },
+  )
+
+  it('does not retry a non-concurrency raw-query error wrapped as P2010', async () => {
+    const error = new Prisma.PrismaClientKnownRequestError('Raw query failed', {
+      code: 'P2010',
+      clientVersion: '7.8.0',
+      meta: {
+        database_error: {
+          code: '23505',
+          message: 'unique constraint violation',
+        },
+      },
+    })
+    const transaction = vi.fn().mockRejectedValue(error)
+    const run = createInventoryTransactionRunner({ $transaction: transaction })
+
+    await expect(run(async () => 'unused')).rejects.toBe(error)
+    expect(transaction).toHaveBeenCalledOnce()
+  })
+
   it('stops after the third P2034 retry', async () => {
     const error = new Prisma.PrismaClientKnownRequestError('write conflict', {
       code: 'P2034',

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createNuxtTestProcesses } from '../../scripts/nuxt-test-database'
 
-describe('Nuxt HTTP test processes', () => {
+describe('Nuxt test processes', () => {
   const developmentUrl =
     'postgresql://postgres:postgres@localhost:5432/mini_inventory?schema=public'
   const testUrl = 'postgresql://postgres:postgres@localhost:5432/mini_inventory_test?schema=public'
 
-  it('migrates the validated test database before both Nuxt test projects', () => {
+  it('migrates once then runs the component and HTTP projects sequentially', () => {
     expect(
       createNuxtTestProcesses({
         environment: {
@@ -37,8 +37,24 @@ describe('Nuxt HTTP test processes', () => {
             'run',
             '--project',
             'nuxt',
+            '--passWithNoTests',
+            'tests/nuxt/auth-routes.test.ts',
+          ],
+          environment: {
+            DATABASE_URL: developmentUrl,
+            TEST_DATABASE_URL: testUrl,
+            PRESERVED_VALUE: 'preserved',
+            VITEST: 'true',
+          },
+        },
+        {
+          command: '/path/to/node',
+          args: [
+            '/path/to/vitest-cli.mjs',
+            'run',
             '--project',
             'nuxt-http',
+            '--passWithNoTests',
             'tests/nuxt/auth-routes.test.ts',
           ],
           environment: {
