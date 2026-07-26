@@ -14,19 +14,19 @@ const prisma = new PrismaClient({ adapter })
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
-  const displayName = process.env.ADMIN_DISPLAY_NAME?.trim()
+  const displayName = process.env.ADMIN_NAME?.trim()
   const password = process.env.ADMIN_PASSWORD
 
   if (!email && !displayName && !password) {
     console.info(
-      'Administrator seed skipped: ADMIN_EMAIL, ADMIN_DISPLAY_NAME, and ADMIN_PASSWORD are not set.',
+      'Administrator seed skipped: ADMIN_EMAIL, ADMIN_NAME, and ADMIN_PASSWORD are not set.',
     )
     return
   }
 
   if (!email || !displayName || !password) {
     throw new Error(
-      'ADMIN_EMAIL, ADMIN_DISPLAY_NAME, and ADMIN_PASSWORD must all be set to seed an administrator.',
+      'ADMIN_EMAIL, ADMIN_NAME, and ADMIN_PASSWORD must all be set to seed an administrator.',
     )
   }
 

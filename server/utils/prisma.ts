@@ -1,12 +1,9 @@
 import 'dotenv/config'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../../generated/prisma/client'
+import { resolvePrismaConnectionString } from './database-url'
 
-const connectionString = process.env.DATABASE_URL
-
-if (!connectionString) {
-  throw new Error('DATABASE_URL is required to connect to PostgreSQL.')
-}
+const connectionString = resolvePrismaConnectionString(process.env)
 
 const adapter = new PrismaPg({ connectionString })
 

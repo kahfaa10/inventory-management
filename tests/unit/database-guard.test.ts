@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { assertSafeTestDatabaseUrl } from '../helpers/database-url'
+import {
+  assertSafeTestDatabaseUrl,
+  resolvePrismaConnectionString,
+} from '../../server/utils/database-url'
 
 describe('test database URL guard', () => {
   const developmentUrl =
@@ -33,5 +36,38 @@ describe('test database URL guard', () => {
         developmentUrl,
       ),
     ).toBe('postgresql://postgres:postgres@localhost:5432/mini_inventory_test?schema=public')
+  })
+
+  it('uses DATABASE_URL during normal application runtime even when a test URL exists', () => {
+    expect(
+      resolvePrismaConnectionString({
+        DATABASE_URL: developmentUrl,
+        TEST_DATABASE_URL:
+          'postgresql://postgres:postgres@localhost:5432/mini_inventory_test?schema=public',
+      }),
+    ).toBe(developmentUrl)
+  })
+
+  it('uses the guarded TEST_DATABASE_URL only when Vitest explicitly marks the process', () => {
+    const testDatabaseUrl =
+      'postgresql://postgres:postgres@localhost:5432/mini_inventory_test?schema=public'
+
+    expect(
+      resolvePrismaConnectionString({
+        DATABASE_URL: developmentUrl,
+        TEST_DATABASE_URL: testDatabaseUrl,
+        VITEST: 'true',
+      }),
+    ).toBe(testDatabaseUrl)
+  })
+
+  it('refuses to use an unsafe database URL from a Vitest process', () => {
+    expect(() =>
+      resolvePrismaConnectionString({
+        DATABASE_URL: developmentUrl,
+        TEST_DATABASE_URL: developmentUrl,
+        VITEST: 'true',
+      }),
+    ).toThrow('TEST_DATABASE_URL must not equal DATABASE_URL')
   })
 })
