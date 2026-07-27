@@ -139,3 +139,50 @@ export interface StockReleaseReturnableDto {
   customer: StockReleaseCustomerDto
   details: StockReleaseReturnableDetailDto[]
 }
+
+export interface StockReturnDetailDto {
+  id: string
+  stockReleaseDetailId: string
+  destinationRackId: string
+  releasedQuantity: number
+  previouslyReturnedQuantity: number
+  remainingReturnableQuantity: number
+  returnQuantity: number
+  notes: string | null
+  deviceDetail: StockAdjustmentInDeviceDetailDto
+  sourceRack: StockAdjustmentInRackDto
+  destinationRack: StockAdjustmentInRackDto
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StockReturnDto {
+  id: string
+  transactionNumber: string
+  returnDate: string
+  stockReleaseId: string
+  stockRelease: {
+    id: string
+    transactionNumber: string
+    releaseDate: string
+    engineerName: string
+    customerId: string
+    customer: StockReleaseCustomerDto
+  }
+  engineerName: string
+  customerId: string
+  customer: StockReleaseCustomerDto
+  notes: string | null
+  status: TransactionStatus
+  createdById: string
+  createdBy: {
+    id: string
+    displayName: string
+  }
+  details: StockReturnDetailDto[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type StockReturnListResponse = PaginatedResponse<StockReturnDto>
+export type EligibleStockReleaseListResponse = PaginatedResponse<StockReleaseReturnableDto>

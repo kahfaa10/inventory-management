@@ -22,6 +22,7 @@ export default defineConfig({
             'tests/nuxt/stock-balance-api.test.ts',
             'tests/nuxt/stock-adjustment-in-api.test.ts',
             'tests/nuxt/stock-release-api.test.ts',
+            'tests/nuxt/stock-return-api.test.ts',
           ],
           environment: 'nuxt',
           environmentOptions: {
@@ -40,6 +41,7 @@ export default defineConfig({
             'tests/nuxt/stock-balance-api.test.ts',
             'tests/nuxt/stock-adjustment-in-api.test.ts',
             'tests/nuxt/stock-release-api.test.ts',
+            'tests/nuxt/stock-return-api.test.ts',
           ],
           environment: 'node',
           fileParallelism: false,
