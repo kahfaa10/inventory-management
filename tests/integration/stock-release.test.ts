@@ -252,9 +252,63 @@ describe('stock release service', () => {
     })
   })
 
+  it('rejects completion atomically when a selected master is deactivated after drafting', async () => {
+    await withCleanDatabase(async () => {
+      const data = await fixture()
+      const draft = await createStockRelease(data.user.id, releaseInput(data, 3))
+      await prisma.rack.update({
+        where: { id: data.rack.id },
+        data: { isActive: false },
+      })
+
+      await expect(completeStockRelease(draft.id, data.user.id)).rejects.toMatchObject({
+        statusCode: 422,
+        code: 'INACTIVE_MASTER',
+      })
+      await expect(
+        prisma.stockRelease.findUniqueOrThrow({ where: { id: BigInt(draft.id) } }),
+      ).resolves.toMatchObject({ status: TransactionStatus.DRAFT })
+      await expect(
+        prisma.stockMovement.count({
+          where: {
+            transactionType: TransactionType.STOCK_RELEASE,
+            transactionId: BigInt(draft.id),
+          },
+        }),
+      ).resolves.toBe(0)
+      await expect(getStockBalance(prisma, data.detail.id, data.rack.id)).resolves.toBe(10)
+    })
+  })
+
   it('aggregates duplicate stock keys, prevents oversell, and is repeatedly idempotent', async () => {
     await withCleanDatabase(async () => {
       const data = await fixture(5)
+      const aggregateOversellInput = releaseInput(data, 3)
+      aggregateOversellInput.details.push({
+        deviceDetailId: data.detail.id.toString(),
+        sourceRackId: data.rack.id.toString(),
+        releasedQuantity: 3,
+        notes: 'aggregate oversell',
+      })
+      const aggregateOversell = await createStockRelease(data.user.id, aggregateOversellInput)
+      await expect(completeStockRelease(aggregateOversell.id, data.user.id)).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'INSUFFICIENT_STOCK',
+        message: expect.stringContaining('Available quantity: 5'),
+        fieldErrors: {
+          'details.0.releasedQuantity': [expect.stringContaining('Available quantity: 5')],
+          'details.1.releasedQuantity': [expect.stringContaining('Available quantity: 5')],
+        },
+      })
+      await expect(
+        prisma.stockMovement.count({
+          where: {
+            transactionType: TransactionType.STOCK_RELEASE,
+            transactionId: BigInt(aggregateOversell.id),
+          },
+        }),
+      ).resolves.toBe(0)
+
       const input = releaseInput(data, 2)
       input.details.push({
         deviceDetailId: data.detail.id.toString(),
@@ -263,6 +317,7 @@ describe('stock release service', () => {
         notes: 'duplicate',
       })
       const draft = await createStockRelease(data.user.id, input)
+      expect(draft.details.map(({ availableQuantity }) => availableQuantity)).toEqual([5, 5])
 
       const completed = await completeStockRelease(draft.id, data.user.id)
       await expect(completeStockRelease(draft.id, data.user.id)).resolves.toMatchObject({

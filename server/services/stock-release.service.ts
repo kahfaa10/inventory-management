@@ -37,7 +37,7 @@ import { lockStockKeys, lockStockReleaseDetailRows } from '../utils/stock-lock'
 import { runInventoryTransaction } from '../utils/transaction'
 import { parseBody, parseQuery } from '../utils/validation'
 import { reverseOutboundStockMovements } from './cancellation.service'
-import { getStockBalance } from './stock.service'
+import { getStockBalance, getStockBalances, stockBalanceKey } from './stock.service'
 import { nextTransactionNumber } from './transaction-number.service'
 
 type ActorId = bigint | string
@@ -87,15 +87,16 @@ function insufficientStockError(
   )
 }
 
-async function detailDto(
+function detailDto(
   detail: StockReleaseRecord['details'][number],
-): Promise<StockReleaseDetailDto> {
+  balances: ReadonlyMap<string, number>,
+): StockReleaseDetailDto {
   return {
     id: detail.id.toString(),
     deviceDetailId: detail.deviceDetailId.toString(),
     sourceRackId: detail.rackId.toString(),
     releasedQuantity: detail.releasedQuantity,
-    availableQuantity: await getStockBalance(prisma, detail.deviceDetailId, detail.rackId),
+    availableQuantity: balances.get(stockBalanceKey(detail.deviceDetailId, detail.rackId)) ?? 0,
     notes: detail.notes,
     deviceDetail: {
       id: detail.deviceDetail.id.toString(),
@@ -121,12 +122,10 @@ async function detailDto(
   }
 }
 
-async function releaseDto(record: StockReleaseRecord): Promise<StockReleaseDto> {
-  const details: StockReleaseDetailDto[] = []
-  for (const detail of record.details) {
-    details.push(await detailDto(detail))
-  }
-
+function releaseDto(
+  record: StockReleaseRecord,
+  balances: ReadonlyMap<string, number>,
+): StockReleaseDto {
   return {
     id: record.id.toString(),
     transactionNumber: record.transactionNumber,
@@ -164,7 +163,7 @@ async function releaseDto(record: StockReleaseRecord): Promise<StockReleaseDto> 
       id: record.createdBy.id.toString(),
       displayName: record.createdBy.displayName,
     },
-    details,
+    details: record.details.map((detail) => detailDto(detail, balances)),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   }
@@ -349,15 +348,24 @@ export async function listStockReleases(
     skip: (value.page - 1) * value.pageSize,
     take: value.pageSize,
   })
-  const data: StockReleaseDto[] = []
-  for (const record of result.data) data.push(await releaseDto(record))
+  const balances = await getStockBalances(
+    prisma,
+    result.data.flatMap((record) =>
+      record.details.map(({ deviceDetailId, rackId }) => ({ deviceDetailId, rackId })),
+    ),
+  )
+  const data = result.data.map((record) => releaseDto(record, balances))
   return { data, page: value.page, pageSize: value.pageSize, total: result.total }
 }
 
 export async function getStockRelease(id: string): Promise<StockReleaseDto> {
   const record = await findStockReleaseRecord(prisma, positiveBigInt(id, 'Transaction ID'))
   if (!record) throw notFoundError()
-  return releaseDto(record)
+  const balances = await getStockBalances(
+    prisma,
+    record.details.map(({ deviceDetailId, rackId }) => ({ deviceDetailId, rackId })),
+  )
+  return releaseDto(record, balances)
 }
 
 export async function createStockRelease(
