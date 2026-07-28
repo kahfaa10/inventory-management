@@ -23,7 +23,7 @@ import type {
 } from '../../shared/types/transactions'
 import {
   createStockReturnRecord,
-  findEligibleStockReleaseCandidates,
+  findEligibleStockReleasePage,
   findStockReturnRecord,
   findStockReturnState,
   listStockReturnRecords,
@@ -37,7 +37,7 @@ import type { StockReleaseRecord } from '../repositories/stock-release.repositor
 import { ApiError } from '../utils/api-error'
 import { inactiveMasterError, notFoundError } from '../utils/prisma-errors'
 import { prisma } from '../utils/prisma'
-import { lockStockReleaseDetailRows } from '../utils/stock-lock'
+import { lockStockKeys, lockStockReleaseDetailRows } from '../utils/stock-lock'
 import { runInventoryTransaction } from '../utils/transaction'
 import { parseBody, parseQuery } from '../utils/validation'
 import { reverseInboundStockMovements } from './cancellation.service'
@@ -50,6 +50,14 @@ interface ReturnableQuantity {
   releasedQuantity: number
   completedReturnedQuantity: number
   remainingReturnableQuantity: number
+}
+
+function runReturnReadSnapshot<T>(
+  operation: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(operation, {
+    isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+  })
 }
 
 function positiveBigInt(value: bigint | string, label: string): bigint {
@@ -277,14 +285,17 @@ async function validateReturn(
   return { release, releaseDetails }
 }
 
-async function returnDtos(records: readonly StockReturnRecord[]): Promise<StockReturnDto[]> {
+async function returnDtos(
+  client: ReturnQuantityClient,
+  records: readonly StockReturnRecord[],
+): Promise<StockReturnDto[]> {
   const releaseDetails = records.flatMap((record) =>
     record.details.map(({ stockReleaseDetail }) => ({
       id: stockReleaseDetail.id,
       releasedQuantity: stockReleaseDetail.releasedQuantity,
     })),
   )
-  const quantities = await getReturnableQuantities(prisma, releaseDetails)
+  const quantities = await getReturnableQuantities(client, releaseDetails)
 
   return records.map((record) => {
     const currentByReleaseDetail = new Map<bigint, number>()
@@ -417,23 +428,28 @@ export async function listStockReturns(
         }
       : {}),
   }
-  const result = await listStockReturnRecords({
-    where,
-    skip: (value.page - 1) * value.pageSize,
-    take: value.pageSize,
+  return runReturnReadSnapshot(async (tx) => {
+    const result = await listStockReturnRecords(tx, {
+      where,
+      skip: (value.page - 1) * value.pageSize,
+      take: value.pageSize,
+    })
+    return {
+      data: await returnDtos(tx, result.data),
+      page: value.page,
+      pageSize: value.pageSize,
+      total: result.total,
+    }
   })
-  return {
-    data: await returnDtos(result.data),
-    page: value.page,
-    pageSize: value.pageSize,
-    total: result.total,
-  }
 }
 
 export async function getStockReturn(id: string): Promise<StockReturnDto> {
-  const record = await findStockReturnRecord(prisma, positiveBigInt(id, 'Transaction ID'))
-  if (!record) throw notFoundError()
-  return (await returnDtos([record]))[0]!
+  const stockReturnId = positiveBigInt(id, 'Transaction ID')
+  return runReturnReadSnapshot(async (tx) => {
+    const record = await findStockReturnRecord(tx, stockReturnId)
+    if (!record) throw notFoundError()
+    return (await returnDtos(tx, [record]))[0]!
+  })
 }
 
 export async function createStockReturn(
@@ -509,6 +525,13 @@ export async function completeStockReturn(id: string, actorId: ActorId): Promise
       true,
     )
     const releaseDetailById = new Map(releaseDetails.map((detail) => [detail.id, detail]))
+    await lockStockKeys(
+      tx,
+      current.details.map((detail) => ({
+        deviceDetailId: releaseDetailById.get(detail.stockReleaseDetailId)!.deviceDetailId,
+        rackId: detail.destinationRackId,
+      })),
+    )
 
     await tx.stockMovement.createMany({
       data: current.details.map((detail) => ({
@@ -629,10 +652,10 @@ export async function cancelStockReturn(id: string, actorId: ActorId): Promise<S
   return getStockReturn(stockReturnId.toString())
 }
 
-async function releaseReturnableDto(
+function releaseReturnableDto(
   record: StockReleaseRecord,
   quantities: ReadonlyMap<bigint, ReturnableQuantity>,
-): Promise<StockReleaseReturnableDto> {
+): StockReleaseReturnableDto {
   return {
     id: record.id.toString(),
     transactionNumber: record.transactionNumber,
@@ -682,40 +705,24 @@ export async function listEligibleStockReleases(
   query: EligibleStockReleaseListQueryInput = {},
 ): Promise<PaginatedResponse<StockReleaseReturnableDto>> {
   const value = parseQuery(eligibleStockReleaseListQuerySchema, query)
-  const candidates = await findEligibleStockReleaseCandidates({
-    status: TransactionStatus.COMPLETED,
-    ...(value.customerId ? { customerId: BigInt(value.customerId) } : {}),
-    ...(value.search
-      ? {
-          OR: [
-            { transactionNumber: { contains: value.search, mode: 'insensitive' as const } },
-            { engineerName: { contains: value.search, mode: 'insensitive' as const } },
-            {
-              customer: {
-                customerName: { contains: value.search, mode: 'insensitive' as const },
-              },
-            },
-          ],
-        }
-      : {}),
+  return runReturnReadSnapshot(async (tx) => {
+    const page = await findEligibleStockReleasePage(tx, {
+      search: value.search,
+      customerId: value.customerId ? BigInt(value.customerId) : undefined,
+      skip: (value.page - 1) * value.pageSize,
+      take: value.pageSize,
+    })
+    const quantities = await getReturnableQuantities(
+      tx,
+      page.data.flatMap((record) =>
+        record.details.map(({ id, releasedQuantity }) => ({ id, releasedQuantity })),
+      ),
+    )
+    return {
+      data: page.data.map((record) => releaseReturnableDto(record, quantities)),
+      page: value.page,
+      pageSize: value.pageSize,
+      total: page.total,
+    }
   })
-  const quantities = await getReturnableQuantities(
-    prisma,
-    candidates.flatMap((record) =>
-      record.details.map(({ id, releasedQuantity }) => ({ id, releasedQuantity })),
-    ),
-  )
-  const eligible = candidates.filter((record) =>
-    record.details.some(
-      (detail) => (quantities.get(detail.id)?.remainingReturnableQuantity ?? 0) > 0,
-    ),
-  )
-  const start = (value.page - 1) * value.pageSize
-  const page = eligible.slice(start, start + value.pageSize)
-  return {
-    data: await Promise.all(page.map((record) => releaseReturnableDto(record, quantities))),
-    page: value.page,
-    pageSize: value.pageSize,
-    total: eligible.length,
-  }
 }

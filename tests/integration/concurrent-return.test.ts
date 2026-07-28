@@ -13,6 +13,7 @@ import {
   cancelStockReturn,
   completeStockReturn,
   createStockReturn,
+  getStockReturn,
 } from '../../server/services/stock-return.service'
 import { getStockBalance } from '../../server/services/stock.service'
 import { prisma, withCleanDatabase } from '../helpers/database'
@@ -185,6 +186,35 @@ describe('concurrent Stock Returns', () => {
             returned.status === TransactionStatus.CANCELLED),
       ).toBe(true)
       await expect(getStockBalance(prisma, data.detail.id, data.rack.id)).resolves.toBe(0)
+    })
+  })
+
+  it('returns status and returnable quantities from one consistent read snapshot', async () => {
+    await withCleanDatabase(async () => {
+      const data = await fixture()
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const stockReturn = await completeStockReturn(
+          (await createStockReturn(data.user.id, returnBody(data, 1))).id,
+          data.user.id,
+        )
+        const [, ...reads] = await Promise.all([
+          cancelStockReturn(stockReturn.id, data.admin.id),
+          ...Array.from({ length: 8 }, () => getStockReturn(stockReturn.id)),
+        ])
+
+        for (const result of reads) {
+          const detail = result.details[0]!
+          expect(detail.previouslyReturnedQuantity).toBe(0)
+          expect(detail.previouslyReturnedQuantity).toBeGreaterThanOrEqual(0)
+          if (result.status === TransactionStatus.COMPLETED) {
+            expect(detail.remainingReturnableQuantity).toBe(2)
+          } else {
+            expect(result.status).toBe(TransactionStatus.CANCELLED)
+            expect(detail.remainingReturnableQuantity).toBe(3)
+          }
+        }
+      }
     })
   })
 })
