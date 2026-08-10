@@ -40,9 +40,7 @@ async function submit(_event: FormSubmitEvent<LoginInput>) {
 </script>
 
 <template>
-  <main
-    class="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950"
-  >
+  <main class="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
     <UCard class="w-full max-w-md">
       <template #header>
         <div>

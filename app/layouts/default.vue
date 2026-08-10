@@ -3,7 +3,7 @@ const mobileNavigationOpen = ref(false)
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-50 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50">
+  <div class="min-h-screen bg-neutral-50 text-neutral-950">
     <AppSidebar />
     <div class="min-h-screen lg:pl-64">
       <header
