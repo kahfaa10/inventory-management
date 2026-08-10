@@ -23,6 +23,26 @@ const transactionLinks = [
   { label: 'Stock Releases', to: '/transactions/stock-releases', icon: 'i-lucide-package-minus' },
   { label: 'Stock Returns', to: '/transactions/stock-returns', icon: 'i-lucide-undo-2' },
 ]
+const reportLinks = [
+  { label: 'Stock Card', to: '/reports/stock-card', icon: 'i-lucide-clipboard-list' },
+  {
+    label: 'Stock Card by Customer',
+    to: '/reports/stock-card-by-customer',
+    icon: 'i-lucide-building-2',
+  },
+  { label: 'Stock-In', to: '/reports/stock-in', icon: 'i-lucide-file-input' },
+  {
+    label: 'Stock-In by Customer',
+    to: '/reports/stock-in-by-customer',
+    icon: 'i-lucide-building-2',
+  },
+  { label: 'Stock-Out', to: '/reports/stock-out', icon: 'i-lucide-file-output' },
+  {
+    label: 'Stock-Out by Customer',
+    to: '/reports/stock-out-by-customer',
+    icon: 'i-lucide-building-2',
+  },
+]
 
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
@@ -70,6 +90,19 @@ async function logout() {
       </p>
       <UButton
         v-for="link in transactionLinks"
+        :key="link.to"
+        :to="link.to"
+        :icon="link.icon"
+        :label="link.label"
+        color="neutral"
+        variant="ghost"
+        block
+        class="mb-1 justify-start"
+        @click="emit('navigate')"
+      />
+      <p class="mt-4 px-3 py-2 text-xs font-semibold tracking-wide text-muted uppercase">Report</p>
+      <UButton
+        v-for="link in reportLinks"
         :key="link.to"
         :to="link.to"
         :icon="link.icon"
