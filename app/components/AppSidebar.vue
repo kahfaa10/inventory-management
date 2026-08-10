@@ -14,6 +14,15 @@ const masterLinks = [
   { label: 'Customers', to: '/master/customers', icon: 'i-lucide-building-2' },
   { label: 'Racks', to: '/master/racks', icon: 'i-lucide-warehouse' },
 ]
+const transactionLinks = [
+  {
+    label: 'Stock Adjustment In',
+    to: '/transactions/stock-adjustment-ins',
+    icon: 'i-lucide-package-plus',
+  },
+  { label: 'Stock Releases', to: '/transactions/stock-releases', icon: 'i-lucide-package-minus' },
+  { label: 'Stock Returns', to: '/transactions/stock-returns', icon: 'i-lucide-undo-2' },
+]
 
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
@@ -46,6 +55,21 @@ async function logout() {
       <p class="px-3 py-2 text-xs font-semibold tracking-wide text-muted uppercase">Master</p>
       <UButton
         v-for="link in masterLinks"
+        :key="link.to"
+        :to="link.to"
+        :icon="link.icon"
+        :label="link.label"
+        color="neutral"
+        variant="ghost"
+        block
+        class="mb-1 justify-start"
+        @click="emit('navigate')"
+      />
+      <p class="mt-4 px-3 py-2 text-xs font-semibold tracking-wide text-muted uppercase">
+        Transaction
+      </p>
+      <UButton
+        v-for="link in transactionLinks"
         :key="link.to"
         :to="link.to"
         :icon="link.icon"
