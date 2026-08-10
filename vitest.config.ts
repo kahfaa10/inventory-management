@@ -24,6 +24,7 @@ export default defineConfig({
             'tests/nuxt/stock-release-api.test.ts',
             'tests/nuxt/stock-return-api.test.ts',
             'tests/nuxt/report-api.test.ts',
+            'tests/nuxt/report-export-api.test.ts',
           ],
           environment: 'nuxt',
           environmentOptions: {
@@ -44,6 +45,7 @@ export default defineConfig({
             'tests/nuxt/stock-release-api.test.ts',
             'tests/nuxt/stock-return-api.test.ts',
             'tests/nuxt/report-api.test.ts',
+            'tests/nuxt/report-export-api.test.ts',
           ],
           environment: 'node',
           fileParallelism: false,
