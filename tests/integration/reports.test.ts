@@ -1,14 +1,20 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { UserRole } from '../../generated/prisma/client'
+import { MovementPurpose, TransactionType, UserRole } from '../../generated/prisma/client'
 import {
+  cancelStockAdjustmentIn,
   completeStockAdjustmentIn,
   createStockAdjustmentIn,
 } from '../../server/services/stock-adjustment-in.service'
 import {
+  cancelStockRelease,
   completeStockRelease,
   createStockRelease,
 } from '../../server/services/stock-release.service'
-import { completeStockReturn, createStockReturn } from '../../server/services/stock-return.service'
+import {
+  cancelStockReturn,
+  completeStockReturn,
+  createStockReturn,
+} from '../../server/services/stock-return.service'
 import {
   getStockCardByCustomerReport,
   getStockCardReport,
@@ -246,6 +252,28 @@ describe('ledger-backed inventory reports', () => {
     })
   })
 
+  it('keeps all cancellation reversals in Stock Card while excluding every cancelled flow header', async () => {
+    await withCleanDatabase(async () => {
+      const data = await createFixture()
+      await cancelStockReturn(data.returned.id, data.user.id)
+      await cancelStockRelease(data.release.id, data.user.id)
+      await cancelStockAdjustmentIn(data.adjustment.id, data.user.id)
+
+      const filters = {
+        deviceDetailId: data.detail.id.toString(),
+        rackId: data.rack.id.toString(),
+      }
+      const card = await getStockCardReport(filters)
+      expect(card.rows).toHaveLength(6)
+      expect(
+        card.rows.filter((row) => row.movementPurpose === 'CANCELLATION_REVERSAL'),
+      ).toHaveLength(3)
+      expect(card.rows.at(-1)?.runningBalance).toBe(0)
+      await expect(getStockInReport(filters)).resolves.toMatchObject({ total: 0, rows: [] })
+      await expect(getStockOutReport(filters)).resolves.toMatchObject({ total: 0, rows: [] })
+    })
+  })
+
   it('strictly isolates customer variants and applies all report filters', async () => {
     await withCleanDatabase(async () => {
       const data = await createFixture()
@@ -288,38 +316,79 @@ describe('ledger-backed inventory reports', () => {
       })
       expect(stockOut.rows).toHaveLength(1)
       expect(stockOut.rows[0]?.customerId).toBe(customerId)
+
+      const nonMatchingStockOutFilters = [
+        { dateFrom: '2026-07-03' },
+        { dateTo: '2026-07-01' },
+        { customerId: data.otherCustomer.id.toString() },
+        { engineerName: 'does-not-match' },
+        { modelId: '999999' },
+        { serviceTagId: '999999' },
+        { deviceId: '999999' },
+        { deviceDetailId: data.otherDetail.id.toString() },
+        { partNumber: 'does-not-match' },
+        { dpn: 'does-not-match' },
+        { rackId: data.otherRack.id.toString() },
+      ]
+      for (const mismatch of nonMatchingStockOutFilters) {
+        await expect(
+          getStockOutReport({
+            customerId,
+            ...mismatch,
+          }),
+        ).resolves.toMatchObject({ total: 0, rows: [] })
+      }
     })
   })
 
   it('paginates in stable chronological order and returns normalized filters', async () => {
     await withCleanDatabase(async () => {
       const data = await createFixture()
+      const tiedTimestamp = new Date('2026-07-05T00:00:00.000Z')
+      await prisma.stockMovement.createMany({
+        data: ['SAI-TIE-0002', 'SAI-TIE-0001'].map((transactionNumber, index) => ({
+          transactionType: TransactionType.STOCK_ADJUSTMENT_IN,
+          transactionId: BigInt(90_000 + index),
+          transactionDetailId: BigInt(90_000 + index),
+          transactionNumber,
+          transactionDate: tiedTimestamp,
+          deviceDetailId: data.detail.id,
+          rackId: data.rack.id,
+          quantityIn: 1,
+          quantityOut: 0,
+          movementPurpose: MovementPurpose.ORIGINAL,
+          createdById: data.user.id,
+          createdAt: tiedTimestamp,
+        })),
+      })
       const pageOne = await getStockCardReport({
         deviceDetailId: data.detail.id.toString(),
         rackId: data.rack.id.toString(),
         page: 1,
-        pageSize: 2,
+        pageSize: 4,
       })
       const pageTwo = await getStockCardReport({
         deviceDetailId: data.detail.id.toString(),
         rackId: data.rack.id.toString(),
         page: 2,
-        pageSize: 2,
+        pageSize: 4,
       })
 
-      expect(pageOne.total).toBe(3)
-      expect(pageOne.rows).toHaveLength(2)
+      expect(pageOne.total).toBe(5)
+      expect(pageOne.rows).toHaveLength(4)
       expect(pageTwo.rows).toHaveLength(1)
       expect([...pageOne.rows, ...pageTwo.rows].map((row) => row.transactionNumber)).toEqual([
         data.adjustment.transactionNumber,
         data.release.transactionNumber,
         data.returned.transactionNumber,
+        'SAI-TIE-0001',
+        'SAI-TIE-0002',
       ])
       expect(pageOne.filters).toMatchObject({
         deviceDetailId: data.detail.id.toString(),
         rackId: data.rack.id.toString(),
         page: 1,
-        pageSize: 2,
+        pageSize: 4,
       })
     })
   })

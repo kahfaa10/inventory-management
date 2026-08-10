@@ -24,6 +24,7 @@ import {
   queryStockCardReport,
   queryStockInReport,
   queryStockOutReport,
+  type ReportReadClient,
   type StockCardDatabaseRow,
   type StockInDatabaseRow,
   type StockOutDatabaseRow,
@@ -141,8 +142,9 @@ function stockOutRow(row: StockOutDatabaseRow): StockOutReportRow {
 
 async function stockCardResult<TFilters extends StockCardReportQuery>(
   filters: TFilters,
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockCardReportRow, TFilters>> {
-  const result = await queryStockCardReport(filters)
+  const result = await queryStockCardReport(filters, client)
   return {
     rows: result.rows.map(stockCardRow),
     page: filters.page,
@@ -154,8 +156,9 @@ async function stockCardResult<TFilters extends StockCardReportQuery>(
 
 async function stockInResult<TFilters extends StockInReportQuery>(
   filters: TFilters,
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockInReportRow, TFilters>> {
-  const result = await queryStockInReport(filters)
+  const result = await queryStockInReport(filters, client)
   return {
     rows: result.rows.map(stockInRow),
     page: filters.page,
@@ -167,8 +170,9 @@ async function stockInResult<TFilters extends StockInReportQuery>(
 
 async function stockOutResult<TFilters extends StockOutReportQuery>(
   filters: TFilters,
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockOutReportRow, TFilters>> {
-  const result = await queryStockOutReport(filters)
+  const result = await queryStockOutReport(filters, client)
   return {
     rows: result.rows.map(stockOutRow),
     page: filters.page,
@@ -180,36 +184,45 @@ async function stockOutResult<TFilters extends StockOutReportQuery>(
 
 export async function getStockCardReport(
   query: unknown = {},
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockCardReportRow, StockCardReportQuery>> {
-  return await stockCardResult(parseReportQuery(stockCardReportQuerySchema, query))
+  return await stockCardResult(parseReportQuery(stockCardReportQuerySchema, query), client)
 }
 
 export async function getStockCardByCustomerReport(
   query: unknown = {},
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockCardReportRow, StockCardByCustomerReportQuery>> {
-  return await stockCardResult(parseReportQuery(stockCardByCustomerReportQuerySchema, query))
+  return await stockCardResult(
+    parseReportQuery(stockCardByCustomerReportQuerySchema, query),
+    client,
+  )
 }
 
 export async function getStockInReport(
   query: unknown = {},
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockInReportRow, StockInReportQuery>> {
-  return await stockInResult(parseReportQuery(stockInReportQuerySchema, query))
+  return await stockInResult(parseReportQuery(stockInReportQuerySchema, query), client)
 }
 
 export async function getStockInByCustomerReport(
   query: unknown = {},
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockInReportRow, StockInByCustomerReportQuery>> {
-  return await stockInResult(parseReportQuery(stockInByCustomerReportQuerySchema, query))
+  return await stockInResult(parseReportQuery(stockInByCustomerReportQuerySchema, query), client)
 }
 
 export async function getStockOutReport(
   query: unknown = {},
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockOutReportRow, StockOutReportQuery>> {
-  return await stockOutResult(parseReportQuery(stockOutReportQuerySchema, query))
+  return await stockOutResult(parseReportQuery(stockOutReportQuerySchema, query), client)
 }
 
 export async function getStockOutByCustomerReport(
   query: unknown = {},
+  client?: ReportReadClient,
 ): Promise<ReportResult<StockOutReportRow, StockOutByCustomerReportQuery>> {
-  return await stockOutResult(parseReportQuery(stockOutByCustomerReportQuerySchema, query))
+  return await stockOutResult(parseReportQuery(stockOutByCustomerReportQuerySchema, query), client)
 }

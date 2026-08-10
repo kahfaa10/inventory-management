@@ -9,6 +9,16 @@ import type {
 } from '../../shared/schemas/reports'
 import { prisma } from '../utils/prisma'
 
+export type ReportReadClient = Pick<Prisma.TransactionClient, '$queryRaw'>
+
+export async function withReportReadSnapshot<T>(
+  callback: (client: ReportReadClient) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(callback, {
+    isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+  })
+}
+
 export interface StockCardDatabaseRow {
   movementId: bigint
   transactionDate: Date
@@ -109,6 +119,15 @@ function pageOffset(filters: { page: number; pageSize: number }): number {
   return (filters.page - 1) * filters.pageSize
 }
 
+function safeCount(rows: readonly CountRow[]): number {
+  const total = rows[0]?.total ?? BigInt(0)
+  const value = Number(total)
+  if (!Number.isSafeInteger(value)) {
+    throw new RangeError('Report row count exceeds the supported integer range.')
+  }
+  return value
+}
+
 function stockCardScope(
   filters: StockCardReportQuery | StockCardByCustomerReportQuery,
 ): Prisma.Sql {
@@ -196,13 +215,17 @@ function stockCardScope(
 
 export async function queryStockCardReport(
   filters: StockCardReportQuery | StockCardByCustomerReportQuery,
+  client?: ReportReadClient,
 ): Promise<{ rows: StockCardDatabaseRow[]; total: number }> {
+  if (!client) {
+    return withReportReadSnapshot((snapshot) => queryStockCardReport(filters, snapshot))
+  }
   const scope = stockCardScope(filters)
   const visibleDate = filters.dateFrom
     ? Prisma.sql`"transactionDate" >= ${filters.dateFrom}::date`
     : Prisma.sql`TRUE`
 
-  const rows = await prisma.$queryRaw<StockCardDatabaseRow[]>(Prisma.sql`
+  const rows = await client.$queryRaw<StockCardDatabaseRow[]>(Prisma.sql`
       WITH ledger_scope AS (${scope}),
       calculated AS (
         SELECT
@@ -253,15 +276,15 @@ export async function queryStockCardReport(
         "movementId"
       LIMIT ${filters.pageSize}
       OFFSET ${pageOffset(filters)}
-    `)
-  const counts = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
-    WITH ledger_scope AS (${scope})
-    SELECT COUNT(*) AS "total"
-    FROM ledger_scope
-    WHERE ${visibleDate}
+  `)
+  const counts = await client.$queryRaw<CountRow[]>(Prisma.sql`
+      WITH ledger_scope AS (${scope})
+      SELECT COUNT(*) AS "total"
+      FROM ledger_scope
+      WHERE ${visibleDate}
   `)
 
-  return { rows, total: Number(counts[0]?.total ?? BigInt(0)) }
+  return { rows, total: safeCount(counts) }
 }
 
 function stockInScope(filters: StockInReportQuery | StockInByCustomerReportQuery): Prisma.Sql {
@@ -345,9 +368,13 @@ function stockInScope(filters: StockInReportQuery | StockInByCustomerReportQuery
 
 export async function queryStockInReport(
   filters: StockInReportQuery | StockInByCustomerReportQuery,
+  client?: ReportReadClient,
 ): Promise<{ rows: StockInDatabaseRow[]; total: number }> {
+  if (!client) {
+    return withReportReadSnapshot((snapshot) => queryStockInReport(filters, snapshot))
+  }
   const scope = stockInScope(filters)
-  const rows = await prisma.$queryRaw<StockInDatabaseRow[]>(Prisma.sql`
+  const rows = await client.$queryRaw<StockInDatabaseRow[]>(Prisma.sql`
       WITH report_rows AS (${scope})
       SELECT
         "movementId",
@@ -377,12 +404,12 @@ export async function queryStockInReport(
         "movementId"
       LIMIT ${filters.pageSize}
       OFFSET ${pageOffset(filters)}
-    `)
-  const counts = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
-    WITH report_rows AS (${scope})
-    SELECT COUNT(*) AS "total" FROM report_rows
   `)
-  return { rows, total: Number(counts[0]?.total ?? BigInt(0)) }
+  const counts = await client.$queryRaw<CountRow[]>(Prisma.sql`
+      WITH report_rows AS (${scope})
+      SELECT COUNT(*) AS "total" FROM report_rows
+  `)
+  return { rows, total: safeCount(counts) }
 }
 
 function stockOutScope(filters: StockOutReportQuery | StockOutByCustomerReportQuery): Prisma.Sql {
@@ -449,9 +476,13 @@ function stockOutScope(filters: StockOutReportQuery | StockOutByCustomerReportQu
 
 export async function queryStockOutReport(
   filters: StockOutReportQuery | StockOutByCustomerReportQuery,
+  client?: ReportReadClient,
 ): Promise<{ rows: StockOutDatabaseRow[]; total: number }> {
+  if (!client) {
+    return withReportReadSnapshot((snapshot) => queryStockOutReport(filters, snapshot))
+  }
   const scope = stockOutScope(filters)
-  const rows = await prisma.$queryRaw<StockOutDatabaseRow[]>(Prisma.sql`
+  const rows = await client.$queryRaw<StockOutDatabaseRow[]>(Prisma.sql`
       WITH report_rows AS (${scope})
       SELECT
         "movementId",
@@ -486,10 +517,10 @@ export async function queryStockOutReport(
         "movementId"
       LIMIT ${filters.pageSize}
       OFFSET ${pageOffset(filters)}
-    `)
-  const counts = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
-    WITH report_rows AS (${scope})
-    SELECT COUNT(*) AS "total" FROM report_rows
   `)
-  return { rows, total: Number(counts[0]?.total ?? BigInt(0)) }
+  const counts = await client.$queryRaw<CountRow[]>(Prisma.sql`
+      WITH report_rows AS (${scope})
+      SELECT COUNT(*) AS "total" FROM report_rows
+  `)
+  return { rows, total: safeCount(counts) }
 }
