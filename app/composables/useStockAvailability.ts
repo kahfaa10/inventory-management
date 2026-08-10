@@ -7,10 +7,11 @@ export function useStockAvailability() {
 
   const keyFor = (deviceDetailId: string, rackId: string) => `${deviceDetailId}:${rackId}`
 
-  async function refresh(deviceDetailId?: string, rackId?: string) {
+  async function refresh(deviceDetailId?: string, rackId?: string, force = false) {
     if (!deviceDetailId || !rackId) return undefined
 
     const key = keyFor(deviceDetailId, rackId)
+    if (!force && balances[key] !== undefined) return balances[key]
     pendingKeys.add(key)
     errors.delete(key)
     try {
@@ -33,6 +34,15 @@ export function useStockAvailability() {
     }
   }
 
+  async function refreshRacks(
+    deviceDetailId: string | undefined,
+    rackIds: readonly string[],
+    force = false,
+  ) {
+    if (!deviceDetailId) return
+    await Promise.all(rackIds.map((rackId) => refresh(deviceDetailId, rackId, force)))
+  }
+
   function balance(deviceDetailId?: string, rackId?: string) {
     if (!deviceDetailId || !rackId) return undefined
     return balances[keyFor(deviceDetailId, rackId)]
@@ -47,5 +57,18 @@ export function useStockAvailability() {
     return errors.get(keyFor(deviceDetailId, rackId))
   }
 
-  return { refresh, balance, isPending, error }
+  function isDevicePending(deviceDetailId?: string) {
+    if (!deviceDetailId) return false
+    return [...pendingKeys].some((key) => key.startsWith(`${deviceDetailId}:`))
+  }
+
+  function deviceError(deviceDetailId?: string) {
+    if (!deviceDetailId) return undefined
+    for (const [key, message] of errors) {
+      if (key.startsWith(`${deviceDetailId}:`)) return message
+    }
+    return undefined
+  }
+
+  return { refresh, refreshRacks, balance, isPending, error, isDevicePending, deviceError }
 }

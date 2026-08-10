@@ -11,15 +11,26 @@ interface TransactionApiError {
   fieldErrors: Record<string, string[]>
 }
 
-function apiError(error: unknown): TransactionApiError {
+export function parseTransactionApiError(error: unknown): TransactionApiError {
   const response = error as {
+    message?: string
+    fieldErrors?: Record<string, string[]>
     data?: {
       data?: { message?: string; fieldErrors?: Record<string, string[]> }
       message?: string
       fieldErrors?: Record<string, string[]>
     }
+    response?: {
+      _data?: {
+        data?: { message?: string; fieldErrors?: Record<string, string[]> }
+        message?: string
+        fieldErrors?: Record<string, string[]>
+      }
+    }
   }
-  const body = response.data?.data ?? response.data
+  const responseData = response.response?._data
+  const body =
+    response.data?.data ?? response.data ?? responseData?.data ?? responseData ?? response
   return {
     message: body?.message ?? 'The transaction request could not be completed.',
     fieldErrors: body?.fieldErrors ?? {},
@@ -74,7 +85,7 @@ export function useTransactionResource<T extends TransactionRecord>(
       await refresh()
       return record
     } catch (error) {
-      const parsed = apiError(error)
+      const parsed = parseTransactionApiError(error)
       actionError.value = parsed.message
       fieldErrors.value = parsed.fieldErrors
       throw error
@@ -86,6 +97,7 @@ export function useTransactionResource<T extends TransactionRecord>(
   async function runAction(id: string, action: 'complete' | 'cancel') {
     submitting.value = true
     actionError.value = ''
+    fieldErrors.value = {}
     try {
       const record = await $fetch<T>(`${endpoint}/${id}/${action}`, { method: 'POST' })
       toast.add({
@@ -95,7 +107,9 @@ export function useTransactionResource<T extends TransactionRecord>(
       await refresh()
       return record
     } catch (error) {
-      actionError.value = apiError(error).message
+      const parsed = parseTransactionApiError(error)
+      actionError.value = parsed.message
+      fieldErrors.value = parsed.fieldErrors
       throw error
     } finally {
       submitting.value = false

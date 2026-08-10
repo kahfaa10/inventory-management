@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { CustomerDto, DeviceDetailDto, DeviceDto, RackDto } from '#shared/types/masters'
 import type { AdjustmentInFormState } from '../../../components/transactions/forms'
+import { jakartaCalendarDate } from '../../../utils/jakartaDate'
 
 const resource = useTransactionResource('/api/stock-adjustment-ins')
 const state = ref<AdjustmentInFormState>({
-  transactionDate: new Date().toISOString().slice(0, 10),
+  transactionDate: jakartaCalendarDate(),
   customerId: null,
   notes: '',
   details: [],

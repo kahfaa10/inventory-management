@@ -1,6 +1,6 @@
 import { mountSuspended, mockNuxtImport } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { defineComponent, nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppSidebar from '../../app/components/AppSidebar.vue'
 import AdjustmentInForm from '../../app/components/transactions/AdjustmentInForm.vue'
@@ -17,6 +17,9 @@ import ReleaseNewPage from '../../app/pages/transactions/stock-releases/new.vue'
 import ReturnDetailPage from '../../app/pages/transactions/stock-returns/[id].vue'
 import ReturnListPage from '../../app/pages/transactions/stock-returns/index.vue'
 import ReturnNewPage from '../../app/pages/transactions/stock-returns/new.vue'
+import { loadAllEligibleStockReleases } from '../../app/composables/useEligibleStockReleases'
+import { useTransactionResource } from '../../app/composables/useTransactionResource'
+import { jakartaCalendarDate } from '../../app/utils/jakartaDate'
 
 const mocks = vi.hoisted(() => ({
   role: 'ADMIN' as 'ADMIN' | 'USER',
@@ -24,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   navigateTo: vi.fn(),
   refresh: vi.fn(),
+  asyncData: new Map<string, unknown>(),
+  asyncRefreshes: new Map<string, ReturnType<typeof vi.fn>>(),
 }))
 
 mockNuxtImport('useUserSession', () => () => ({
@@ -41,12 +46,16 @@ mockNuxtImport('useFetch', () => () => ({
   error: ref(null),
   refresh: mocks.refresh,
 }))
-mockNuxtImport('useAsyncData', () => (_key: string, loader?: () => Promise<unknown>) => ({
-  data: ref(null),
-  pending: ref(false),
-  error: ref(null),
-  refresh: loader ? vi.fn(loader) : mocks.refresh,
-}))
+mockNuxtImport('useAsyncData', () => (key: string, loader?: () => Promise<unknown>) => {
+  const refresh = loader ? vi.fn(loader) : mocks.refresh
+  mocks.asyncRefreshes.set(key, refresh)
+  return {
+    data: ref(mocks.asyncData.get(key) ?? null),
+    pending: ref(false),
+    error: ref(null),
+    refresh,
+  }
+})
 
 const uiStubs = {
   UAlert: {
@@ -88,7 +97,7 @@ const uiStubs = {
     props: ['modelValue', 'items', 'disabled'],
     emits: ['update:modelValue'],
     template:
-      '<select v-bind="$attrs" :disabled="disabled" :value="modelValue ?? \'\'" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="String(item.value)" :value="item.value ?? \'\'">{{ item.label }}</option></select>',
+      '<select v-bind="$attrs" :disabled="disabled" :value="modelValue ?? \'\'" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="String(item.value)" :value="item.value ?? \'\'" :disabled="item.disabled">{{ item.label }}</option></select>',
   },
   UTable: {
     props: ['columns', 'data'],
@@ -120,14 +129,127 @@ const deviceDetail = {
 const deviceDetails = [deviceDetail]
 const rack = { id: '20', rackCode: 'A', rackName: 'Rack A', isActive: true }
 const racks = [rack]
+const emptyRack = { id: '21', rackCode: 'B', rackName: 'Empty Rack', isActive: true }
 const customer = { id: '30', customerName: 'ACME', isActive: true }
 const customers = [customer]
+
+const audit = { createdAt: '2026-08-10T00:00:00.000Z', updatedAt: '2026-08-10T00:00:00.000Z' }
+const creator = { id: '1', displayName: 'Administrator' }
+const adjustmentRecord = {
+  id: '1',
+  transactionNumber: 'SAI-202608-0001',
+  transactionDate: '2026-08-10',
+  customerId: '30',
+  customer: { ...customer, customerName: 'Legacy Customer', isActive: false },
+  notes: '',
+  status: 'DRAFT' as const,
+  createdById: '1',
+  createdBy: creator,
+  details: [
+    {
+      id: '101',
+      deviceDetailId: '11',
+      destinationRackId: '20',
+      quantity: 1,
+      notes: null,
+      deviceDetail: {
+        ...deviceDetail,
+        isActive: false,
+        device: { ...device, deviceName: 'Legacy Device', isActive: false },
+      },
+      destinationRack: { ...rack, rackName: 'Legacy Rack', isActive: false },
+      ...audit,
+    },
+  ],
+  ...audit,
+}
+const releaseRecord = {
+  id: '1',
+  transactionNumber: 'SRL-202608-0001',
+  releaseDate: '2026-08-10',
+  engineerName: 'Engineer',
+  customerId: '30',
+  customer: { ...customer, customerName: 'Legacy Customer', isActive: false },
+  modelId: '40',
+  model: { id: '40', modelName: 'Legacy Model', isActive: false },
+  serviceTagId: '50',
+  serviceTag: {
+    id: '50',
+    serviceTag: 'LEGACY-TAG',
+    modelId: '40',
+    customerId: '30',
+    isActive: false,
+  },
+  referenceNumber: '',
+  notes: '',
+  status: 'DRAFT' as const,
+  createdById: '1',
+  createdBy: creator,
+  details: [
+    {
+      id: '201',
+      deviceDetailId: '11',
+      sourceRackId: '20',
+      releasedQuantity: 1,
+      availableQuantity: 7,
+      notes: null,
+      deviceDetail: {
+        ...deviceDetail,
+        isActive: false,
+        device: { ...device, deviceName: 'Legacy Device', isActive: false },
+      },
+      sourceRack: { ...rack, rackName: 'Legacy Rack', isActive: false },
+      ...audit,
+    },
+  ],
+  ...audit,
+}
+const returnRecord = {
+  id: '1',
+  transactionNumber: 'SRT-202608-0001',
+  returnDate: '2026-08-10',
+  stockReleaseId: '60',
+  stockRelease: {
+    id: '60',
+    transactionNumber: 'SRL-202608-0001',
+    releaseDate: '2026-08-09',
+    engineerName: 'Engineer',
+    customerId: '30',
+    customer: { ...customer, customerName: 'Legacy Customer', isActive: false },
+  },
+  engineerName: 'Engineer',
+  customerId: '30',
+  customer: { ...customer, customerName: 'Legacy Customer', isActive: false },
+  notes: '',
+  status: 'DRAFT' as const,
+  createdById: '1',
+  createdBy: creator,
+  details: [
+    {
+      id: '301',
+      stockReleaseDetailId: '201',
+      destinationRackId: '20',
+      releasedQuantity: 5,
+      previouslyReturnedQuantity: 1,
+      remainingReturnableQuantity: 3,
+      returnQuantity: 1,
+      notes: null,
+      deviceDetail,
+      sourceRack: rack,
+      destinationRack: { ...rack, rackName: 'Legacy Rack', isActive: false },
+      ...audit,
+    },
+  ],
+  ...audit,
+}
 
 beforeEach(() => {
   mocks.role = 'ADMIN'
   mocks.request.mockReset().mockResolvedValue({ balance: 7 })
   mocks.navigateTo.mockReset().mockResolvedValue(undefined)
   mocks.refresh.mockReset().mockResolvedValue(undefined)
+  mocks.asyncData.clear()
+  mocks.asyncRefreshes.clear()
   vi.stubGlobal('$fetch', mocks.request)
 })
 
@@ -227,7 +349,12 @@ describe('transaction pages and shared behavior', () => {
     expect(wrapper.find('button[aria-label="Remove detail row 1"]').exists()).toBe(false)
   })
 
-  it('refreshes release availability only after Device Detail and Rack are selected', async () => {
+  it('filters Source Rack choices to positive stock for the selected Device Detail', async () => {
+    mocks.request.mockImplementation(
+      async (_url: string, options?: { query?: { rackId?: string } }) => ({
+        balance: options?.query?.rackId === '20' ? 7 : 0,
+      }),
+    )
     const wrapper = await mountSuspended(StockReleaseForm, {
       ...mountOptions,
       props: {
@@ -253,23 +380,23 @@ describe('transaction pages and shared behavior', () => {
         editable: true,
         devices,
         deviceDetails,
-        racks,
+        racks: [rack, emptyRack],
         customers,
         models: [],
         serviceTags: [],
       },
     })
 
-    expect(mocks.request).not.toHaveBeenCalledWith('/api/stock/balance', expect.anything())
     await wrapper.get('[aria-label="Device Detail row 1"]').setValue('11')
-    await flushPromises()
-    expect(mocks.request).not.toHaveBeenCalledWith('/api/stock/balance', expect.anything())
-    await wrapper.get('[aria-label="Source Rack row 1"]').setValue('20')
     await flushPromises()
     expect(mocks.request).toHaveBeenCalledWith('/api/stock/balance', {
       query: { deviceDetailId: '11', rackId: '20' },
     })
-    expect(wrapper.text()).toContain('Available: 7')
+    expect(mocks.request).toHaveBeenCalledWith('/api/stock/balance', {
+      query: { deviceDetailId: '11', rackId: '21' },
+    })
+    expect(wrapper.get('[aria-label="Source Rack row 1"]').text()).toContain('Rack A')
+    expect(wrapper.get('[aria-label="Source Rack row 1"]').text()).not.toContain('Empty Rack')
   })
 
   it('filters Service Tags to the exact selected Model and Customer relationship', async () => {
@@ -363,5 +490,191 @@ describe('transaction pages and shared behavior', () => {
     expect(wrapper.text()).toContain('Remaining: 3')
     expect(wrapper.find('input[aria-label="Engineer Name"]').attributes('readonly')).toBeDefined()
     expect(wrapper.find('input[aria-label="Customer"]').attributes('readonly')).toBeDefined()
+  })
+
+  it.each([
+    ['adjustment', AdjustmentDetailPage, AdjustmentInForm, adjustmentRecord],
+    ['release', ReleaseDetailPage, StockReleaseForm, releaseRecord],
+    ['return', ReturnDetailPage, StockReturnForm, returnRecord],
+  ] as const)(
+    'disables completion while the %s draft has unsaved changes',
+    async (_, page, form, record) => {
+      const endpoint =
+        page === AdjustmentDetailPage
+          ? '/api/stock-adjustment-ins'
+          : page === ReleaseDetailPage
+            ? '/api/stock-releases'
+            : '/api/stock-returns'
+      mocks.asyncData.set(`transaction:${endpoint}:1`, record)
+      const wrapper = await mountSuspended(page, mountOptions)
+      const complete = wrapper.findAll('button').find((button) => button.text() === 'Complete')!
+      expect(complete.attributes('disabled')).toBeUndefined()
+
+      const formWrapper = wrapper.findComponent(form)
+      formWrapper.vm.$emit('update:modelValue', {
+        ...formWrapper.props('modelValue'),
+        notes: 'Unsaved edit',
+      })
+      await nextTick()
+      expect(complete.attributes('disabled')).toBeDefined()
+      expect(complete.attributes('title')).toContain('Save')
+
+      formWrapper.vm.$emit('update:modelValue', {
+        ...formWrapper.props('modelValue'),
+        notes: '',
+      })
+      await nextTick()
+      expect(complete.attributes('disabled')).toBeUndefined()
+    },
+  )
+
+  it('preserves structured field errors returned by completion actions', async () => {
+    let resource: ReturnType<typeof useTransactionResource> | undefined
+    const harness = defineComponent({
+      setup() {
+        resource = useTransactionResource('/api/stock-releases')
+        return () => null
+      },
+    })
+    await mountSuspended(harness, mountOptions)
+    mocks.request.mockRejectedValueOnce({
+      data: {
+        data: {
+          message: 'Stock changed before completion.',
+          fieldErrors: { 'details.0.releasedQuantity': ['Only 2 remain available.'] },
+        },
+      },
+    })
+
+    await expect(resource!.runAction('1', 'complete')).rejects.toBeTruthy()
+    expect(resource!.actionError.value).toBe('Stock changed before completion.')
+    expect(resource!.fieldErrors.value).toEqual({
+      'details.0.releasedQuantity': ['Only 2 remain available.'],
+    })
+  })
+
+  it.each(['success', 'conflict'] as const)(
+    'refreshes the Stock Return record and returnable quantities after completion %s',
+    async (outcome) => {
+      mocks.asyncData.set('transaction:/api/stock-returns:1', returnRecord)
+      mocks.asyncData.set('eligible-stock-releases:detail', {
+        data: [],
+        page: 1,
+        pageSize: 100,
+        total: 0,
+      })
+      mocks.request.mockImplementation(async (url: string) => {
+        if (url.endsWith('/complete')) {
+          if (outcome === 'conflict') {
+            throw { data: { message: 'Returnable quantity changed.' } }
+          }
+          return { ...returnRecord, status: 'COMPLETED' }
+        }
+        if (url === '/api/stock-returns/eligible-releases') {
+          return { data: [], page: 1, pageSize: 100, total: 0 }
+        }
+        return { ...returnRecord, status: outcome === 'success' ? 'COMPLETED' : 'DRAFT' }
+      })
+      const wrapper = await mountSuspended(ReturnDetailPage, mountOptions)
+      const recordRefresh = mocks.asyncRefreshes.get('transaction:/api/stock-returns:1')!
+      const eligibleRefresh = mocks.asyncRefreshes.get('eligible-stock-releases:detail')!
+
+      await wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'Complete')!
+        .trigger('click')
+      await wrapper.get('button[data-action="confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(recordRefresh).toHaveBeenCalled()
+      expect(eligibleRefresh).toHaveBeenCalled()
+      if (outcome === 'conflict') expect(wrapper.text()).toContain('Returnable quantity changed.')
+    },
+  )
+
+  it.each(['success', 'conflict'] as const)(
+    'refreshes the Stock Release record and rack availability after completion %s',
+    async (outcome) => {
+      mocks.asyncData.set('transaction:/api/stock-releases:1', releaseRecord)
+      mocks.request.mockImplementation(async (url: string) => {
+        if (url === '/api/stock/balance') return { balance: 7 }
+        if (url.endsWith('/complete')) {
+          if (outcome === 'conflict') throw { data: { message: 'Available stock changed.' } }
+          return { ...releaseRecord, status: 'COMPLETED' }
+        }
+        return { ...releaseRecord, status: outcome === 'success' ? 'COMPLETED' : 'DRAFT' }
+      })
+      const wrapper = await mountSuspended(ReleaseDetailPage, mountOptions)
+      await flushPromises()
+      const initialBalanceRequests = mocks.request.mock.calls.filter(
+        ([url]) => url === '/api/stock/balance',
+      ).length
+      const recordRefresh = mocks.asyncRefreshes.get('transaction:/api/stock-releases:1')!
+
+      await wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'Complete')!
+        .trigger('click')
+      await wrapper.get('button[data-action="confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(recordRefresh).toHaveBeenCalled()
+      expect(
+        mocks.request.mock.calls.filter(([url]) => url === '/api/stock/balance').length,
+      ).toBeGreaterThan(initialBalanceRequests)
+      if (outcome === 'conflict') expect(wrapper.text()).toContain('Available stock changed.')
+    },
+  )
+
+  it('keeps referenced inactive master labels visible on historical transaction pages', async () => {
+    mocks.asyncData.set('transaction:/api/stock-adjustment-ins:1', {
+      ...adjustmentRecord,
+      status: 'COMPLETED',
+    })
+    const adjustment = await mountSuspended(AdjustmentDetailPage, mountOptions)
+    expect(adjustment.text()).toContain('Legacy Customer')
+    expect(adjustment.text()).toContain('Legacy Device')
+    expect(adjustment.text()).toContain('Legacy Rack')
+
+    mocks.asyncData.clear()
+    mocks.asyncData.set('transaction:/api/stock-releases:1', {
+      ...releaseRecord,
+      status: 'COMPLETED',
+    })
+    const release = await mountSuspended(ReleaseDetailPage, mountOptions)
+    expect(release.text()).toContain('Legacy Model')
+    expect(release.text()).toContain('LEGACY-TAG')
+
+    mocks.asyncData.clear()
+    mocks.asyncData.set('transaction:/api/stock-returns:1', {
+      ...returnRecord,
+      status: 'CANCELLED',
+    })
+    const stockReturn = await mountSuspended(ReturnDetailPage, mountOptions)
+    expect(stockReturn.text()).toContain('Legacy Rack')
+  })
+
+  it('defaults new transaction dates to the Asia/Jakarta calendar day', async () => {
+    expect(jakartaCalendarDate(new Date('2026-08-10T18:00:00.000Z'))).toBe('2026-08-11')
+  })
+
+  it('loads eligible Stock Releases beyond the first API page', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ data: [releaseRecord], page: 1, pageSize: 1, total: 2 })
+      .mockResolvedValueOnce({
+        data: [{ ...releaseRecord, id: '2' }],
+        page: 2,
+        pageSize: 1,
+        total: 2,
+      })
+    const result = await loadAllEligibleStockReleases(fetcher)
+    expect(fetcher).toHaveBeenNthCalledWith(1, '/api/stock-returns/eligible-releases', {
+      query: { page: 1, pageSize: 100 },
+    })
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/stock-returns/eligible-releases', {
+      query: { page: 2, pageSize: 100 },
+    })
+    expect(result.data.map(({ id }) => id)).toEqual(['1', '2'])
   })
 })

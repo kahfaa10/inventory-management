@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { TransactionStatus } from '#shared/enums/inventory'
 
-const props = defineProps<{ status: TransactionStatus; pending?: boolean }>()
+const props = defineProps<{
+  status: TransactionStatus
+  pending?: boolean
+  completeDisabled?: boolean
+}>()
 const emit = defineEmits<{ edit: []; complete: []; cancel: [] }>()
 const { user } = useUserSession()
 const isDraft = computed(() => props.status === 'DRAFT')
@@ -23,7 +27,8 @@ const canCancel = computed(() => user.value?.role === 'ADMIN' && props.status !=
       v-if="isDraft"
       label="Complete"
       icon="i-lucide-check"
-      :disabled="pending"
+      :disabled="pending || completeDisabled"
+      :title="completeDisabled ? 'Save draft changes before completing.' : undefined"
       @click="emit('complete')"
     />
     <UButton

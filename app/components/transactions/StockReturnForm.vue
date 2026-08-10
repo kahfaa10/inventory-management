@@ -16,6 +16,7 @@ const emit = defineEmits<{
   submit: [value: Record<string, unknown>]
 }>()
 const state = reactive(cloneForm(props.modelValue))
+const eligibleSearch = ref('')
 watch(
   () => props.modelValue,
   (value) => Object.assign(state, cloneForm(value)),
@@ -24,9 +25,17 @@ watch(
 
 const option = (label: string, value: string) => ({ label, value })
 const releaseItems = computed(() =>
-  props.eligibleReleases.map((release) =>
-    option(`${release.transactionNumber} — ${release.releaseDate.slice(0, 10)}`, release.id),
-  ),
+  props.eligibleReleases
+    .filter((release) => {
+      const search = eligibleSearch.value.trim().toLocaleLowerCase()
+      if (!search || release.id === state.stockReleaseId) return true
+      return [release.transactionNumber, release.engineerName, release.customer.customerName].some(
+        (value) => value.toLocaleLowerCase().includes(search),
+      )
+    })
+    .map((release) =>
+      option(`${release.transactionNumber} — ${release.releaseDate.slice(0, 10)}`, release.id),
+    ),
 )
 const rackItems = computed(() =>
   props.racks.map((item) => option(`${item.rackCode} — ${item.rackName}`, item.id)),
@@ -124,6 +133,13 @@ function removeDetail(index: number) {
         name="stockReleaseId"
         :error="fieldErrors?.stockReleaseId?.[0]"
       >
+        <UInput
+          v-if="editable"
+          v-model="eligibleSearch"
+          aria-label="Search eligible Stock Releases"
+          placeholder="Search number, engineer, or customer"
+          class="mb-2"
+        />
         <USelect
           :model-value="state.stockReleaseId"
           :items="releaseItems"

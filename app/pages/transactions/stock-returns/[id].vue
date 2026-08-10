@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { PaginatedResponse } from '#shared/types/api'
 import type { RackDto } from '#shared/types/masters'
 import type { StockReleaseReturnableDto, StockReturnDto } from '#shared/types/transactions'
 import type { StockReturnFormState } from '../../../components/transactions/forms'
+import { mergeOptionsById } from '../../../components/transactions/forms'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -14,10 +14,9 @@ const {
   refresh,
 } = useTransactionRecord<StockReturnDto>('/api/stock-returns', id)
 const { data: racks } = useActiveMasterOptions<RackDto>('/api/racks')
-const { data: eligible } = useAsyncData('eligible-stock-releases:detail', () =>
-  $fetch<PaginatedResponse<StockReleaseReturnableDto>>('/api/stock-returns/eligible-releases', {
-    query: { page: 1, pageSize: 100 },
-  }),
+const { data: eligible, refresh: refreshEligible } = useAsyncData(
+  'eligible-stock-releases:detail',
+  () => loadAllEligibleStockReleases(),
 )
 const state = ref<StockReturnFormState>({
   returnDate: '',
@@ -27,6 +26,7 @@ const state = ref<StockReturnFormState>({
 })
 const reviewOpen = ref(false)
 const reviewAction = ref<'complete' | 'cancel'>('complete')
+const draft = useDraftDirty(state)
 const currentRelease = computed<StockReleaseReturnableDto | null>(() => {
   const value = record.value
   if (!value) return null
@@ -55,12 +55,18 @@ const releaseOptions = computed(() => {
     ? [currentRelease.value, ...options.filter((item) => item.id !== currentRelease.value?.id)]
     : options
 })
+const rackOptions = computed(() =>
+  mergeOptionsById(
+    racks.value ?? [],
+    record.value?.details.map((detail) => detail.destinationRack) ?? [],
+  ),
+)
 
 watch(
   record,
   (value) => {
     if (!value) return
-    state.value = {
+    draft.hydrate({
       returnDate: value.returnDate.slice(0, 10),
       stockReleaseId: value.stockReleaseId,
       notes: value.notes ?? '',
@@ -71,7 +77,7 @@ watch(
         returnQuantity: detail.returnQuantity,
         notes: detail.notes ?? '',
       })),
-    }
+    })
   },
   { immediate: true },
 )
@@ -80,12 +86,14 @@ useHead({ title: 'Stock Return | Mini Inventory' })
 async function save(body: Record<string, unknown>) {
   try {
     await resource.save(body, id.value)
+    draft.markSaved()
     await refresh()
   } catch {
     // The composable retains server errors and the draft input for correction.
   }
 }
 function review(action: 'complete' | 'cancel') {
+  if (action === 'complete' && draft.isDirty.value) return
   resource.actionError.value = ''
   reviewAction.value = action
   reviewOpen.value = true
@@ -94,9 +102,10 @@ async function confirm() {
   try {
     await resource.runAction(id.value, reviewAction.value)
     reviewOpen.value = false
-    await refresh()
   } catch {
     // Keep the review modal open with the server conflict message.
+  } finally {
+    await Promise.allSettled([refresh(), refreshEligible()])
   }
 }
 </script>
@@ -111,6 +120,7 @@ async function confirm() {
         v-if="record"
         :status="record.status"
         :pending="resource.submitting.value"
+        :complete-disabled="draft.isDirty.value"
         @edit="() => undefined"
         @complete="review('complete')"
         @cancel="review('cancel')"
@@ -137,7 +147,7 @@ async function confirm() {
       <TransactionsStockReturnForm
         v-model="state"
         :editable="record.status === 'DRAFT'"
-        :racks="racks || []"
+        :racks="rackOptions"
         :eligible-releases="releaseOptions"
         :field-errors="resource.fieldErrors.value"
         :submitting="resource.submitting.value"

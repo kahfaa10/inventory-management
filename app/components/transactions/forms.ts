@@ -81,3 +81,14 @@ export function localKey() {
 export function cloneForm<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
+
+export function mergeOptionsById<T extends { id: string }>(
+  active: readonly T[],
+  referenced: readonly T[],
+): T[] {
+  const records = new Map(active.map((item) => [item.id, item]))
+  for (const item of referenced) {
+    if (!records.has(item.id)) records.set(item.id, item)
+  }
+  return [...records.values()]
+}

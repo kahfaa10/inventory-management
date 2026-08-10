@@ -9,6 +9,7 @@ import type {
 } from '#shared/types/masters'
 import type { StockReleaseDto } from '#shared/types/transactions'
 import type { StockReleaseFormState } from '../../../components/transactions/forms'
+import { mergeOptionsById } from '../../../components/transactions/forms'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -37,12 +38,44 @@ const state = ref<StockReleaseFormState>({
 })
 const reviewOpen = ref(false)
 const reviewAction = ref<'complete' | 'cancel'>('complete')
+const draft = useDraftDirty(state)
+const releaseForm = ref<{ refreshAvailability: () => Promise<unknown> } | null>(null)
+const customerOptions = computed(() =>
+  mergeOptionsById(customers.value ?? [], record.value ? [record.value.customer] : []),
+)
+const deviceOptions = computed(() =>
+  mergeOptionsById(
+    devices.value ?? [],
+    record.value?.details.map((detail) => detail.deviceDetail.device) ?? [],
+  ),
+)
+const deviceDetailOptions = computed(() =>
+  mergeOptionsById(
+    deviceDetails.value ?? [],
+    record.value?.details.map((detail) => detail.deviceDetail) ?? [],
+  ),
+)
+const rackOptions = computed(() =>
+  mergeOptionsById(
+    racks.value ?? [],
+    record.value?.details.map((detail) => detail.sourceRack) ?? [],
+  ),
+)
+const modelOptions = computed(() =>
+  mergeOptionsById(models.value ?? [], record.value?.model ? [record.value.model] : []),
+)
+const serviceTagOptions = computed(() =>
+  mergeOptionsById(
+    serviceTags.value ?? [],
+    record.value?.serviceTag ? [record.value.serviceTag] : [],
+  ),
+)
 
 watch(
   record,
   (value) => {
     if (!value) return
-    state.value = {
+    draft.hydrate({
       releaseDate: value.releaseDate.slice(0, 10),
       engineerName: value.engineerName,
       customerId: value.customerId,
@@ -58,7 +91,7 @@ watch(
         releasedQuantity: detail.releasedQuantity,
         notes: detail.notes ?? '',
       })),
-    }
+    })
   },
   { immediate: true },
 )
@@ -67,12 +100,14 @@ useHead({ title: 'Stock Release | Mini Inventory' })
 async function save(body: Record<string, unknown>) {
   try {
     await resource.save(body, id.value)
+    draft.markSaved()
     await refresh()
   } catch {
     // The composable retains server errors and the draft input for correction.
   }
 }
 function review(action: 'complete' | 'cancel') {
+  if (action === 'complete' && draft.isDirty.value) return
   resource.actionError.value = ''
   reviewAction.value = action
   reviewOpen.value = true
@@ -81,9 +116,12 @@ async function confirm() {
   try {
     await resource.runAction(id.value, reviewAction.value)
     reviewOpen.value = false
-    await refresh()
   } catch {
     // Keep the review modal open with the server conflict message.
+  } finally {
+    await Promise.allSettled([refresh()])
+    await nextTick()
+    await Promise.allSettled([releaseForm.value?.refreshAvailability()])
   }
 }
 </script>
@@ -95,6 +133,7 @@ async function confirm() {
         v-if="record"
         :status="record.status"
         :pending="resource.submitting.value"
+        :complete-disabled="draft.isDirty.value"
         @edit="() => undefined"
         @complete="review('complete')"
         @cancel="review('cancel')"
@@ -119,14 +158,15 @@ async function confirm() {
         :description="resource.actionError.value"
       />
       <TransactionsStockReleaseForm
+        ref="releaseForm"
         v-model="state"
         :editable="record.status === 'DRAFT'"
-        :customers="customers || []"
-        :devices="devices || []"
-        :device-details="deviceDetails || []"
-        :racks="racks || []"
-        :models="models || []"
-        :service-tags="serviceTags || []"
+        :customers="customerOptions"
+        :devices="deviceOptions"
+        :device-details="deviceDetailOptions"
+        :racks="rackOptions"
+        :models="modelOptions"
+        :service-tags="serviceTagOptions"
         :field-errors="resource.fieldErrors.value"
         :submitting="resource.submitting.value"
         @submit="save"

@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import type { PaginatedResponse } from '#shared/types/api'
 import type { RackDto } from '#shared/types/masters'
-import type { StockReleaseReturnableDto } from '#shared/types/transactions'
 import type { StockReturnFormState } from '../../../components/transactions/forms'
+import { jakartaCalendarDate } from '../../../utils/jakartaDate'
 
 const resource = useTransactionResource('/api/stock-returns')
 const state = ref<StockReturnFormState>({
-  returnDate: new Date().toISOString().slice(0, 10),
+  returnDate: jakartaCalendarDate(),
   stockReleaseId: '',
   notes: '',
   details: [],
@@ -20,11 +19,7 @@ const {
   data: eligible,
   pending,
   error,
-} = useAsyncData('eligible-stock-releases:new', () =>
-  $fetch<PaginatedResponse<StockReleaseReturnableDto>>('/api/stock-returns/eligible-releases', {
-    query: { page: 1, pageSize: 100 },
-  }),
-)
+} = useAsyncData('eligible-stock-releases:new', () => loadAllEligibleStockReleases())
 useHead({ title: 'New Stock Return | Mini Inventory' })
 
 async function submit(body: Record<string, unknown>) {

@@ -40,9 +40,16 @@ const customerItems = computed(() =>
   props.customers.map((item) => option(item.customerName, item.id)),
 )
 const deviceItems = computed(() => props.devices.map((item) => option(item.deviceName, item.id)))
-const rackItems = computed(() =>
-  props.racks.map((item) => option(`${item.rackCode} — ${item.rackName}`, item.id)),
-)
+const rackItems = (row: StockReleaseFormState['details'][number]) =>
+  props.racks
+    .filter((item) => {
+      const balance = availability.balance(row.deviceDetailId, item.id)
+      return (balance !== undefined && balance > 0) || item.id === row.sourceRackId
+    })
+    .map((item) => ({
+      ...option(`${item.rackCode} — ${item.rackName}`, item.id),
+      disabled: (availability.balance(row.deviceDetailId, item.id) ?? 0) <= 0,
+    }))
 const modelItems = computed(() => [
   option('No model', null),
   ...props.models.map((item) => option(item.modelName, item.id)),
@@ -50,7 +57,11 @@ const modelItems = computed(() => [
 const serviceTagItems = computed(() => [
   option('No service tag', null),
   ...props.serviceTags
-    .filter((item) => item.modelId === state.modelId && item.customerId === state.customerId)
+    .filter(
+      (item) =>
+        item.id === state.serviceTagId ||
+        (item.modelId === state.modelId && item.customerId === state.customerId),
+    )
     .map((item) => option(item.serviceTag, item.id)),
 ])
 const detailItems = (deviceId: string) =>
@@ -87,17 +98,24 @@ function setHeader(field: keyof Omit<StockReleaseFormState, 'details'>, value: s
   if (field === 'customerId' || field === 'modelId') state.serviceTagId = null
   publish()
 }
-async function refreshAvailability(index: number) {
+async function refreshAvailability(index: number, force = false) {
   const row = state.details[index]
-  await availability.refresh(row?.deviceDetailId, row?.sourceRackId)
+  await availability.refreshRacks(
+    row?.deviceDetailId,
+    props.racks.map((rack) => rack.id),
+    force,
+  )
 }
 function setDetail(index: number, values: Partial<(typeof state.details)[number]>) {
   Object.assign(state.details[index]!, values)
   publish()
-  void refreshAvailability(index)
 }
 function setDevice(index: number, deviceId: string) {
-  setDetail(index, { deviceId, deviceDetailId: '' })
+  setDetail(index, { deviceId, deviceDetailId: '', sourceRackId: '' })
+}
+function setDeviceDetail(index: number, deviceDetailId: string) {
+  setDetail(index, { deviceDetailId, sourceRackId: '' })
+  void refreshAvailability(index)
 }
 function addDetail() {
   state.details.push({
@@ -117,6 +135,17 @@ function removeDetail(index: number) {
 
 onMounted(() => {
   for (const [index] of state.details.entries()) void refreshAvailability(index)
+})
+watch(
+  () => props.racks.map((rack) => rack.id).join(','),
+  () => {
+    for (const [index] of state.details.entries()) void refreshAvailability(index)
+  },
+)
+
+defineExpose({
+  refreshAvailability: () =>
+    Promise.all(state.details.map((_, index) => refreshAvailability(index, true))),
 })
 </script>
 
@@ -221,7 +250,7 @@ onMounted(() => {
               :items="detailItems(row.deviceId)"
               :disabled="!editable || !row.deviceId"
               :aria-label="`Device Detail row ${index + 1}`"
-              @update:model-value="setDetail(index, { deviceDetailId: String($event) })"
+              @update:model-value="setDeviceDetail(index, String($event))"
             />
           </UFormField>
           <UFormField
@@ -231,8 +260,10 @@ onMounted(() => {
           >
             <USelect
               :model-value="row.sourceRackId"
-              :items="rackItems"
-              :disabled="!editable"
+              :items="rackItems(row)"
+              :disabled="
+                !editable || !row.deviceDetailId || availability.isDevicePending(row.deviceDetailId)
+              "
               :aria-label="`Source Rack row ${index + 1}`"
               @update:model-value="setDetail(index, { sourceRackId: String($event) })"
             />
@@ -252,8 +283,8 @@ onMounted(() => {
             />
           </UFormField>
           <div class="text-sm md:col-span-2 xl:col-span-4" aria-live="polite">
-            <span v-if="availability.isPending(row.deviceDetailId, row.sourceRackId)">
-              Refreshing availability…
+            <span v-if="availability.isDevicePending(row.deviceDetailId)">
+              Loading racks with available stock…
             </span>
             <span
               v-else-if="availability.balance(row.deviceDetailId, row.sourceRackId) !== undefined"
@@ -262,11 +293,11 @@ onMounted(() => {
               Available: {{ availability.balance(row.deviceDetailId, row.sourceRackId) }}
             </span>
             <span
-              v-if="availability.error(row.deviceDetailId, row.sourceRackId)"
+              v-if="availability.deviceError(row.deviceDetailId)"
               role="alert"
               class="text-error"
             >
-              {{ availability.error(row.deviceDetailId, row.sourceRackId) }}
+              {{ availability.deviceError(row.deviceDetailId) }}
             </span>
           </div>
           <UFormField

@@ -8,10 +8,11 @@ import type {
   ServiceTagDto,
 } from '#shared/types/masters'
 import type { StockReleaseFormState } from '../../../components/transactions/forms'
+import { jakartaCalendarDate } from '../../../utils/jakartaDate'
 
 const resource = useTransactionResource('/api/stock-releases')
 const state = ref<StockReleaseFormState>({
-  releaseDate: new Date().toISOString().slice(0, 10),
+  releaseDate: jakartaCalendarDate(),
   engineerName: '',
   customerId: '',
   modelId: null,
