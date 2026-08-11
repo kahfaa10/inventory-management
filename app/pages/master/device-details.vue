@@ -17,7 +17,7 @@ const state = reactive({
   isActive: true,
 })
 const columns: TableColumn<MasterListRow>[] = [
-  { accessorKey: 'device.deviceName', header: 'Device' },
+  { accessorKey: 'device.deviceName', header: 'Part' },
   { accessorKey: 'partNumber', header: 'Part Number' },
   { accessorKey: 'dpn', header: 'DP/N' },
   { accessorKey: 'specification', header: 'Specification' },
@@ -45,7 +45,7 @@ const deviceFilterOptions = computed(() => [
   ...(devices.value ?? []).map((item) => ({ label: item.deviceName, value: item.id })),
 ])
 
-useHead({ title: 'Device Details | Mini Inventory' })
+useHead({ title: 'Part Details | Mini Inventory' })
 
 function createRecord() {
   editingId.value = undefined
@@ -85,7 +85,7 @@ async function submit() {
 <template>
   <section>
     <PageHeader
-      title="Device Details"
+      title="Part Details"
       description="Manage inventory items and their part specifications."
     />
     <UAlert
@@ -93,8 +93,8 @@ async function submit() {
       class="mb-4"
       color="error"
       variant="soft"
-      title="Unable to load active Device options"
-      description="Refresh the page before creating or editing a Device Detail."
+      title="Unable to load active Part options"
+      description="Refresh the page before creating or editing a Part Detail."
     />
     <MastersMasterList
       v-model:search="resource.search.value"
@@ -114,8 +114,8 @@ async function submit() {
         <USelect
           v-model="resource.filters.deviceId"
           :items="deviceFilterOptions"
-          placeholder="All devices"
-          aria-label="Filter by device"
+          placeholder="All parts"
+          aria-label="Filter by part"
           class="w-44"
           :loading="devicesPending"
           :disabled="devicesPending || !!devicesError"
@@ -124,13 +124,13 @@ async function submit() {
     </MastersMasterList>
     <MastersMasterFormModal
       v-model:open="modalOpen"
-      :title="editingId ? 'Edit Device Detail' : 'Create Device Detail'"
+      :title="editingId ? 'Edit Part Detail' : 'Create Part Detail'"
       :schema="editingId ? deviceDetailUpdateSchema : deviceDetailCreateSchema"
       :state="state"
       :submitting="resource.submitting.value"
       @submit="submit"
     >
-      <UFormField label="Device" name="deviceId" required>
+      <UFormField label="Part" name="deviceId" required>
         <USelect
           v-model="state.deviceId"
           :items="deviceOptions"

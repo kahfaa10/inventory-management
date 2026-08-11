@@ -9,11 +9,11 @@ const modalOpen = ref(false)
 const editingId = ref<string>()
 const state = reactive({ deviceName: '', description: '', isActive: true })
 const columns: TableColumn<MasterListRow>[] = [
-  { accessorKey: 'deviceName', header: 'Device Name' },
+  { accessorKey: 'deviceName', header: 'Part Name' },
   { accessorKey: 'description', header: 'Description' },
 ]
 
-useHead({ title: 'Devices | Mini Inventory' })
+useHead({ title: 'Parts | Mini Inventory' })
 
 function createRecord() {
   editingId.value = undefined
@@ -40,7 +40,7 @@ async function submit() {
 
 <template>
   <section>
-    <PageHeader title="Devices" description="Manage general spare-part categories." />
+    <PageHeader title="Parts" description="Manage general spare-part categories." />
     <MastersMasterList
       v-model:search="resource.search.value"
       v-model:active-filter="resource.activeFilter.value"
@@ -57,13 +57,13 @@ async function submit() {
     />
     <MastersMasterFormModal
       v-model:open="modalOpen"
-      :title="editingId ? 'Edit Device' : 'Create Device'"
+      :title="editingId ? 'Edit Part' : 'Create Part'"
       :schema="editingId ? deviceUpdateSchema : deviceCreateSchema"
       :state="state"
       :submitting="resource.submitting.value"
       @submit="submit"
     >
-      <UFormField label="Device Name" name="deviceName" required>
+      <UFormField label="Part Name" name="deviceName" required>
         <UInput v-model="state.deviceName" class="w-full" />
       </UFormField>
       <UFormField label="Description" name="description">

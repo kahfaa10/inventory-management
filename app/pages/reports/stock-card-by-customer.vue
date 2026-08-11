@@ -80,19 +80,19 @@ const filters = computed<ReportFilterDefinition[]>(() => [
   },
   {
     name: 'deviceId',
-    label: 'Device',
+    label: 'Part',
     kind: 'select',
     options: [
-      { label: 'All Devices', value: '' },
+      { label: 'All Parts', value: '' },
       ...(devices.data.value ?? []).map((item) => ({ label: item.deviceName, value: item.id })),
     ],
   },
   {
     name: 'deviceDetailId',
-    label: 'Device Detail',
+    label: 'Part Detail',
     kind: 'select',
     options: [
-      { label: 'All Device Details', value: '' },
+      { label: 'All Part Details', value: '' },
       ...(deviceDetails.data.value ?? [])
         .filter((item) => !report.filters.deviceId || item.deviceId === report.filters.deviceId)
         .map((item) => ({ label: `${item.partNumber} — ${item.specification}`, value: item.id })),
@@ -131,7 +131,7 @@ const columns: TableColumn<StockCardReportRow>[] = [
   { accessorKey: 'transactionType', header: 'Transaction Type' },
   { accessorKey: 'model', header: 'Model' },
   { accessorKey: 'serviceTag', header: 'Service Tag' },
-  { accessorKey: 'device', header: 'Device' },
+  { accessorKey: 'device', header: 'Part' },
   { accessorKey: 'partNumber', header: 'Part Number' },
   { accessorKey: 'dpn', header: 'DP/N' },
   { accessorKey: 'specification', header: 'Specification' },

@@ -31,10 +31,10 @@ const filters = computed<ReportFilterDefinition[]>(() => [
   { name: 'dateTo', label: 'Date To', kind: 'date' },
   {
     name: 'deviceId',
-    label: 'Device',
+    label: 'Part',
     kind: 'select',
     options: [
-      { label: 'All Devices', value: '' },
+      { label: 'All Parts', value: '' },
       ...(devices.data.value ?? []).map((item) => ({
         label: item.isActive ? item.deviceName : `${item.deviceName} (Inactive)`,
         value: item.id,
@@ -43,10 +43,10 @@ const filters = computed<ReportFilterDefinition[]>(() => [
   },
   {
     name: 'deviceDetailId',
-    label: 'Device Detail',
+    label: 'Part Detail',
     kind: 'select',
     options: [
-      { label: 'All Device Details', value: '' },
+      { label: 'All Part Details', value: '' },
       ...(deviceDetails.data.value ?? [])
         .filter((item) => !report.filters.deviceId || item.deviceId === report.filters.deviceId)
         .map((item) => ({
@@ -85,7 +85,7 @@ const columns: TableColumn<StockCardReportRow>[] = [
   { accessorKey: 'transactionDate', header: 'Transaction Date' },
   { accessorKey: 'transactionNumber', header: 'Transaction Number' },
   { accessorKey: 'transactionType', header: 'Transaction Type' },
-  { accessorKey: 'device', header: 'Device' },
+  { accessorKey: 'device', header: 'Part' },
   { accessorKey: 'partNumber', header: 'Part Number' },
   { accessorKey: 'dpn', header: 'DP/N' },
   { accessorKey: 'specification', header: 'Specification' },

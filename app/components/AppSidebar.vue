@@ -9,8 +9,8 @@ const { user, clear } = useUserSession()
 const masterLinks = [
   { label: 'Models', to: '/master/models', icon: 'i-lucide-box' },
   { label: 'Service Tags', to: '/master/service-tags', icon: 'i-lucide-tag' },
-  { label: 'Devices', to: '/master/devices', icon: 'i-lucide-hard-drive' },
-  { label: 'Device Details', to: '/master/device-details', icon: 'i-lucide-cpu' },
+  { label: 'Parts', to: '/master/devices', icon: 'i-lucide-hard-drive' },
+  { label: 'Part Details', to: '/master/device-details', icon: 'i-lucide-cpu' },
   { label: 'Customers', to: '/master/customers', icon: 'i-lucide-building-2' },
   { label: 'Racks', to: '/master/racks', icon: 'i-lucide-warehouse' },
 ]

@@ -165,14 +165,7 @@ beforeEach(() => {
 describe('master navigation and pages', () => {
   it('shows only the six approved master navigation entries', async () => {
     const wrapper = await mountSuspended(AppSidebar, mountOptions)
-    for (const label of [
-      'Models',
-      'Service Tags',
-      'Devices',
-      'Device Details',
-      'Customers',
-      'Racks',
-    ]) {
+    for (const label of ['Models', 'Service Tags', 'Parts', 'Part Details', 'Customers', 'Racks']) {
       expect(wrapper.text()).toContain(label)
     }
     expect(wrapper.text()).not.toContain('Purchase Orders')
@@ -221,8 +214,8 @@ describe('master navigation and pages', () => {
   it.each([
     [ModelsPage, 'Models', ['Model Name', 'Description']],
     [ServiceTagsPage, 'Service Tags', ['Service Tag', 'Model', 'Customer']],
-    [DevicesPage, 'Devices', ['Device Name', 'Description']],
-    [DeviceDetailsPage, 'Device Details', ['Device', 'Part Number', 'DP/N', 'Specification']],
+    [DevicesPage, 'Parts', ['Part Name', 'Description']],
+    [DeviceDetailsPage, 'Part Details', ['Part', 'Part Number', 'DP/N', 'Specification']],
     [CustomersPage, 'Customers', ['Customer Name', 'Contact Person', 'Contact Number', 'Address']],
     [RacksPage, 'Racks', ['Rack Code', 'Rack Name', 'Description']],
   ])('renders the %s screen with resource-specific columns', async (page, title, columns) => {
@@ -361,7 +354,7 @@ describe('master navigation and pages', () => {
     mocks.optionErrors.add('/api/devices')
     const wrapper = await mountSuspended(DeviceDetailsPage, mountOptions)
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to load active Device options')
-    expect(wrapper.get('[aria-label="Filter by device"]').attributes()).toHaveProperty('disabled')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to load active Part options')
+    expect(wrapper.get('[aria-label="Filter by part"]').attributes()).toHaveProperty('disabled')
   })
 })
