@@ -345,7 +345,10 @@ describe('master navigation and pages', () => {
       .get('[aria-label="Filter by model"]')
       .findAll('option')
       .map((option) => option.attributes('value'))
-    expect(filterValues).toEqual(['', '1'])
+    expect(filterValues).toEqual(['1'])
+    expect(wrapper.get('[aria-label="Filter by model"]').attributes('placeholder')).toBe(
+      'All models',
+    )
 
     await wrapper
       .findAll('button')

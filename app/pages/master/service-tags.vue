@@ -63,11 +63,9 @@ const customerOptions = computed(() => {
   return options
 })
 const modelFilterOptions = computed(() => [
-  { label: 'All models', value: '' },
   ...(models.value ?? []).map((item) => ({ label: item.modelName, value: item.id })),
 ])
 const customerFilterOptions = computed(() => [
-  { label: 'All customers', value: '' },
   ...(customers.value ?? []).map((item) => ({ label: item.customerName, value: item.id })),
 ])
 
@@ -138,6 +136,7 @@ async function submit() {
         <USelect
           v-model="resource.filters.modelId"
           :items="modelFilterOptions"
+          placeholder="All models"
           aria-label="Filter by model"
           class="w-44"
           :loading="modelsPending"
@@ -146,6 +145,7 @@ async function submit() {
         <USelect
           v-model="resource.filters.customerId"
           :items="customerFilterOptions"
+          placeholder="All customers"
           aria-label="Filter by customer"
           class="w-44"
           :loading="customersPending"

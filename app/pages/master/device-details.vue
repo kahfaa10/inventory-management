@@ -42,7 +42,6 @@ const deviceOptions = computed(() => {
   return options
 })
 const deviceFilterOptions = computed(() => [
-  { label: 'All devices', value: '' },
   ...(devices.value ?? []).map((item) => ({ label: item.deviceName, value: item.id })),
 ])
 
@@ -115,6 +114,7 @@ async function submit() {
         <USelect
           v-model="resource.filters.deviceId"
           :items="deviceFilterOptions"
+          placeholder="All devices"
           aria-label="Filter by device"
           class="w-44"
           :loading="devicesPending"

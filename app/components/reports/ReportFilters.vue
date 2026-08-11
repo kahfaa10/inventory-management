@@ -26,6 +26,14 @@ const emit = defineEmits<{
 function update(name: string, value: string | undefined) {
   emit('update:modelValue', { ...props.modelValue, [name]: value ?? '' })
 }
+
+function selectItems(filter: ReportFilterDefinition) {
+  return (filter.options ?? []).filter((option) => option.value !== '')
+}
+
+function selectPlaceholder(filter: ReportFilterDefinition) {
+  return filter.options?.find((option) => option.value === '')?.label
+}
 </script>
 
 <template>
@@ -40,7 +48,8 @@ function update(name: string, value: string | undefined) {
         <USelect
           v-if="filter.kind === 'select'"
           :model-value="modelValue[filter.name] ?? ''"
-          :items="filter.options ?? []"
+          :items="selectItems(filter)"
+          :placeholder="selectPlaceholder(filter)"
           :aria-label="filter.label"
           :loading="loading"
           :disabled="loading"
