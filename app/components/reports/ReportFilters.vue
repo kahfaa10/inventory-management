@@ -21,7 +21,12 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: Record<string, string>]
+  clear: []
 }>()
+
+const hasActiveFilters = computed(() =>
+  Object.values(props.modelValue).some((value) => value.trim().length > 0),
+)
 
 function update(name: string, value: string | undefined) {
   emit('update:modelValue', { ...props.modelValue, [name]: value ?? '' })
@@ -38,6 +43,16 @@ function selectPlaceholder(filter: ReportFilterDefinition) {
 
 <template>
   <UCard class="mb-4">
+    <div class="mb-4 flex justify-end">
+      <UButton
+        label="Clear filters"
+        color="neutral"
+        variant="outline"
+        size="sm"
+        :disabled="!hasActiveFilters || loading"
+        @click="emit('clear')"
+      />
+    </div>
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <UFormField
         v-for="filter in definitions"

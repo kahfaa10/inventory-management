@@ -74,8 +74,9 @@ const uiStubs = {
   UButton: {
     inheritAttrs: false,
     props: ['label', 'to', 'href', 'disabled'],
+    emits: ['click'],
     template:
-      '<a v-bind="$attrs" :data-to="to" :href="href" :aria-disabled="disabled">{{ label }}<slot /></a>',
+      '<a v-bind="$attrs" :data-to="to" :href="href" :aria-disabled="disabled" @click="$emit(\'click\')">{{ label }}<slot /></a>',
   },
   UCard: { template: '<div><slot /></div>' },
   UFormField: { props: ['label', 'required'], template: '<label>{{ label }}<slot /></label>' },
@@ -261,23 +262,30 @@ describe('inventory report pages', () => {
     for (const column of columns) expect(wrapper.text()).toContain(column)
   })
 
-  it('gates Customer reports and never queries until Customer is selected', async () => {
+  it('loads all data by default and supports selecting and clearing Customer', async () => {
     const wrapper = await mountSuspended(StockInCustomerPage, mountOptions)
     const loader = mocks.loaders.get('inventory-report:/api/reports/stock-in-by-customer')!
 
     await loader()
-    expect(mocks.request).not.toHaveBeenCalledWith(
-      '/api/reports/stock-in-by-customer',
-      expect.anything(),
-    )
-    expect(wrapper.text()).toContain('Customer is required')
-    expect(wrapper.get('a').attributes('aria-disabled')).toBe('true')
+    expect(mocks.request).toHaveBeenCalledWith('/api/reports/stock-in-by-customer', {
+      query: { page: 1, pageSize: 20 },
+    })
 
     await wrapper.get('[aria-label="Customer"]').setValue('30')
     await flushPromises()
     await loader()
     expect(mocks.request).toHaveBeenCalledWith('/api/reports/stock-in-by-customer', {
       query: { customerId: '30', page: 1, pageSize: 20 },
+    })
+
+    await wrapper
+      .findAll('a')
+      .find((link) => link.text() === 'Clear filters')!
+      .trigger('click')
+    await flushPromises()
+    await loader()
+    expect(mocks.request).toHaveBeenCalledWith('/api/reports/stock-in-by-customer', {
+      query: { page: 1, pageSize: 20 },
     })
   })
 

@@ -144,6 +144,7 @@ useHead({ title: 'Stock-Out Report | Mini Inventory' })
       :loading="optionsLoading"
       :validation-message="report.validationMessage.value"
       @update:model-value="report.replaceFilters"
+      @clear="report.clearFilters"
     />
     <ReportsReportTable
       v-model:page="report.page.value"

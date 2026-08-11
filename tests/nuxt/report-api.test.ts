@@ -195,7 +195,9 @@ describe('Report APIs over genuine Nitro HTTP', () => {
         '/api/reports/stock-in-by-customer',
         '/api/reports/stock-out-by-customer',
       ]) {
-        expect((await reportRequest(path, cookie)).status).toBe(422)
+        const response = await reportRequest(path, cookie)
+        expect(response.status).toBe(200)
+        expect((await response.json()).total).toBeGreaterThan(0)
       }
       expect(
         (

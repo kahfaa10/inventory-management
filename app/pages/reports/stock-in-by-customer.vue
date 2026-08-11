@@ -9,7 +9,6 @@ const report = useInventoryReport<StockInReportRow, Record<string, unknown>>({
   endpoint: '/api/reports/stock-in-by-customer',
   exportEndpoint: '/api/reports/stock-in-by-customer/export',
   schema: stockInByCustomerReportQuerySchema,
-  customerRequired: true,
   initialFilters: {
     dateFrom: '',
     dateTo: '',
@@ -38,7 +37,7 @@ const filters = computed<ReportFilterDefinition[]>(() => [
     kind: 'select',
     required: true,
     options: [
-      { label: 'Select Customer', value: '' },
+      { label: 'All Customers', value: '' },
       ...(customers.data.value ?? []).map((item) => ({ label: item.customerName, value: item.id })),
     ],
   },
@@ -109,7 +108,7 @@ useHead({ title: 'Stock-In Report by Customer | Mini Inventory' })
   <section>
     <PageHeader
       title="Stock-In Report by Customer"
-      description="Review completed incoming stock for one Customer."
+      description="Review completed incoming stock with an optional Customer filter."
     >
       <ReportsReportExportButton :href="report.exportUrl.value" :enabled="report.canExport.value" />
     </PageHeader>
@@ -119,6 +118,7 @@ useHead({ title: 'Stock-In Report by Customer | Mini Inventory' })
       :loading="optionsLoading"
       :validation-message="report.validationMessage.value"
       @update:model-value="report.replaceFilters"
+      @clear="report.clearFilters"
     />
     <ReportsReportTable
       v-model:page="report.page.value"

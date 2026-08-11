@@ -128,9 +128,14 @@ export function useInventoryReport<TRow extends object, TFilters extends object>
     Object.assign(filters, value)
   }
 
+  function clearFilters() {
+    for (const key of Object.keys(filters)) filters[key] = ''
+  }
+
   return {
     filters,
     replaceFilters,
+    clearFilters,
     activeFilters,
     query,
     page,

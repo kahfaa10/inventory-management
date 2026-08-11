@@ -52,7 +52,7 @@ export const stockCardReportQuerySchema = withValidDateRange(stockCardShape)
 
 export const stockCardByCustomerReportQuerySchema = withValidDateRange({
   ...stockCardShape,
-  customerId: idSchema,
+  customerId: idSchema.optional(),
   modelId: idSchema.optional(),
   serviceTagId: idSchema.optional(),
 })
@@ -73,7 +73,7 @@ export const stockInReportQuerySchema = withValidDateRange(stockInShape)
 
 export const stockInByCustomerReportQuerySchema = withValidDateRange({
   ...stockInShape,
-  customerId: idSchema,
+  customerId: idSchema.optional(),
 })
 
 const stockOutShape = {
@@ -95,7 +95,7 @@ export const stockOutReportQuerySchema = withValidDateRange(stockOutShape)
 
 export const stockOutByCustomerReportQuerySchema = withValidDateRange({
   ...stockOutShape,
-  customerId: idSchema,
+  customerId: idSchema.optional(),
 })
 
 export type StockCardReportQuery = z.output<typeof stockCardReportQuerySchema>
