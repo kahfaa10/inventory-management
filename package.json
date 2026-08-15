@@ -1,19 +1,60 @@
 {
-	"devDependencies": {
-		"prisma": "^7.8.0",
-		"typescript": "^7.0.2",
-		"vue-tsc": "^3.3.7",
-		"@nuxt/eslint": "^1.16.0",
-		"eslint": "^10.7.0",
-		"prettier": "^3.9.5",
-		"vitest": "^4.1.10",
-		"@vitest/coverage-v8": "^4.1.10",
-		"@nuxt/test-utils": "^4.0.3",
-		"@vue/test-utils": "^2.4.11",
-		"happy-dom": "^20.11.0",
-		"@playwright/test": "^1.61.1",
-		"dotenv": "^17.4.2",
-		"tsx": "^4.23.1",
-		"@types/pg": "^8.20.0"
-	}
+  "name": "mini-inventory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.0",
+  "engines": {
+    "node": ">=22.12 <23",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "node .output/server/index.mjs",
+    "postinstall": "nuxt prepare && prisma generate",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "nuxt typecheck",
+    "test": "pnpm test:unit && pnpm test:nuxt && pnpm test:integration",
+    "test:unit": "vitest run --project unit",
+    "test:nuxt": "tsx scripts/run-nuxt-tests.ts",
+    "test:integration": "tsx scripts/run-integration-tests.ts",
+    "test:e2e": "playwright test",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.10.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "argon2": "^0.44.0",
+    "exceljs": "^4.4.0",
+    "h3": "1.15.11",
+    "nuxt": "^4.4.8",
+    "nuxt-auth-utils": "^0.5.29",
+    "pg": "^8.22.0",
+    "tailwindcss": "^4.3.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.16.0",
+    "@nuxt/test-utils": "^4.0.3",
+    "@playwright/test": "^1.61.1",
+    "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@vue/test-utils": "^2.4.11",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.7.0",
+    "happy-dom": "^20.11.0",
+    "prettier": "^3.9.5",
+    "prisma": "^7.8.0",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.7"
+  }
 }

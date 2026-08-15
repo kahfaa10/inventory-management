@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  USER
+
+  @@map("user_role")
+}
+
+enum TransactionStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+
+  @@map("transaction_status")
+}
+
+enum TransactionType {
+  STOCK_ADJUSTMENT_IN
+  STOCK_RELEASE
+  STOCK_RETURN
+
+  @@map("transaction_type")
+}
+
+enum MovementPurpose {
+  ORIGINAL
+  CANCELLATION_REVERSAL
+
+  @@map("movement_purpose")
+}
+
+model User {
+  id                 BigInt              @id @default(autoincrement())
+  email              String              @unique(map: "users_email_key")
+  displayName        String              @map("display_name")
+  passwordHash       String              @map("password_hash")
+  role               UserRole            @default(USER)
+  isActive           Boolean             @default(true) @map("is_active")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  stockAdjustmentIns StockAdjustmentIn[] @relation("StockAdjustmentInCreatedBy")
+  stockReleases      StockRelease[]      @relation("StockReleaseCreatedBy")
+  stockReturns       StockReturn[]       @relation("StockReturnCreatedBy")
+  stockMovements     StockMovement[]     @relation("StockMovementCreatedBy")
+
+  @@map("users")
+}
+
+model Model {
+  id            BigInt         @id @default(autoincrement())
+  modelName     String         @unique(map: "models_model_name_key") @map("model_name")
+  description   String?
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  serviceTags   ServiceTag[]
+  stockReleases StockRelease[]
+
+  @@map("models")
+}
+
+model ServiceTag {
+  id            BigInt         @id @default(autoincrement())
+  modelId       BigInt         @map("model_id")
+  customerId    BigInt?        @map("customer_id")
+  serviceTag    String         @unique(map: "service_tags_service_tag_key") @map("service_tag")
+  description   String?
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  model         Model          @relation(fields: [modelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stockReleases StockRelease[]
+
+  @@index([modelId], map: "service_tags_model_id_idx")
+  @@index([customerId], map: "service_tags_customer_id_idx")
+  @@map("service_tags")
+}
+
+model Customer {
+  id                 BigInt              @id @default(autoincrement())
+  customerName       String              @unique(map: "customers_customer_name_key") @map("customer_name")
+  address            String?
+  contactPerson      String?             @map("contact_person")
+  contactNumber      String?             @map("contact_number")
+  description        String?
+  isActive           Boolean             @default(true) @map("is_active")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  serviceTags        ServiceTag[]
+  stockAdjustmentIns StockAdjustmentIn[]
+  stockReleases      StockRelease[]
+  stockMovements     StockMovement[]
+
+  @@map("customers")
+}
+
+model Device {
+  id            BigInt         @id @default(autoincrement())
+  deviceName    String         @unique(map: "devices_device_name_key") @map("device_name")
+  description   String?
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deviceDetails DeviceDetail[]
+
+  @@map("devices")
+}
+
+model DeviceDetail {
+  id                       BigInt                    @id @default(autoincrement())
+  deviceId                 BigInt                    @map("device_id")
+  partNumber               String                    @map("part_number")
+  dpn                      String?
+  specification            String
+  description              String?
+  isActive                 Boolean                   @default(true) @map("is_active")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  device                   Device                    @relation(fields: [deviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stockAdjustmentInDetails StockAdjustmentInDetail[]
+  stockReleaseDetails      StockReleaseDetail[]
+  stockMovements           StockMovement[]
+
+  @@index([deviceId], map: "device_details_device_id_idx")
+  @@map("device_details")
+}
+
+model Rack {
+  id                            BigInt                    @id @default(autoincrement())
+  rackCode                      String                    @unique(map: "racks_rack_code_key") @map("rack_code")
+  rackName                      String                    @map("rack_name")
+  description                   String?
+  isActive                      Boolean                   @default(true) @map("is_active")
+  createdAt                     DateTime                  @default(now()) @map("created_at")
+  updatedAt                     DateTime                  @updatedAt @map("updated_at")
+  stockAdjustmentInDetails      StockAdjustmentInDetail[]
+  stockReleaseDetails           StockReleaseDetail[]
+  destinationStockReturnDetails StockReturnDetail[]       @relation("StockReturnDestinationRack")
+  stockMovements                StockMovement[]
+
+  @@map("racks")
+}
+
+model TransactionCounter {
+  id              BigInt          @id @default(autoincrement())
+  transactionType TransactionType @map("transaction_type")
+  yearMonth       String          @map("year_month") @db.VarChar(6)
+  lastNumber      Int             @default(0) @map("last_number")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@unique([transactionType, yearMonth], map: "transaction_counters_type_year_month_key")
+  @@map("transaction_counters")
+}
+
+model StockAdjustmentIn {
+  id                BigInt                    @id @default(autoincrement())
+  transactionNumber String                    @unique(map: "stock_adjustment_ins_transaction_number_key") @map("transaction_number")
+  transactionDate   DateTime                  @map("transaction_date") @db.Date
+  customerId        BigInt?                   @map("customer_id")
+  notes             String?
+  status            TransactionStatus         @default(DRAFT)
+  createdById       BigInt                    @map("created_by")
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  customer          Customer?                 @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy         User                      @relation("StockAdjustmentInCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  details           StockAdjustmentInDetail[]
+
+  @@index([customerId, transactionDate], map: "stock_adjustment_ins_customer_date_idx")
+  @@index([status, transactionDate], map: "stock_adjustment_ins_status_date_idx")
+  @@index([createdById], map: "stock_adjustment_ins_created_by_idx")
+  @@map("stock_adjustment_ins")
+}
+
+model StockAdjustmentInDetail {
+  id                  BigInt            @id @default(autoincrement())
+  stockAdjustmentInId BigInt            @map("stock_adjustment_in_id")
+  deviceDetailId      BigInt            @map("device_detail_id")
+  rackId              BigInt            @map("rack_id")
+  quantity            Int
+  notes               String?
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  stockAdjustmentIn   StockAdjustmentIn @relation(fields: [stockAdjustmentInId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  deviceDetail        DeviceDetail      @relation(fields: [deviceDetailId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rack                Rack              @relation(fields: [rackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([stockAdjustmentInId], map: "sai_details_header_id_idx")
+  @@index([deviceDetailId, rackId], map: "sai_details_device_rack_idx")
+  @@map("stock_adjustment_in_details")
+}
+
+model StockRelease {
+  id                BigInt               @id @default(autoincrement())
+  transactionNumber String               @unique(map: "stock_releases_transaction_number_key") @map("transaction_number")
+  releaseDate       DateTime             @map("release_date") @db.Date
+  engineerName      String               @map("engineer_name")
+  customerId        BigInt               @map("customer_id")
+  modelId           BigInt?              @map("model_id")
+  serviceTagId      BigInt?              @map("service_tag_id")
+  referenceNumber   String?              @map("reference_number")
+  notes             String?
+  status            TransactionStatus    @default(DRAFT)
+  createdById       BigInt               @map("created_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  customer          Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  model             Model?               @relation(fields: [modelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  serviceTag        ServiceTag?          @relation(fields: [serviceTagId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy         User                 @relation("StockReleaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  details           StockReleaseDetail[]
+  stockReturns      StockReturn[]
+
+  @@index([customerId, releaseDate], map: "stock_releases_customer_date_idx")
+  @@index([modelId], map: "stock_releases_model_id_idx")
+  @@index([serviceTagId], map: "stock_releases_service_tag_id_idx")
+  @@index([status, releaseDate], map: "stock_releases_status_date_idx")
+  @@index([createdById], map: "stock_releases_created_by_idx")
+  @@map("stock_releases")
+}
+
+model StockReleaseDetail {
+  id                 BigInt              @id @default(autoincrement())
+  stockReleaseId     BigInt              @map("stock_release_id")
+  deviceDetailId     BigInt              @map("device_detail_id")
+  rackId             BigInt              @map("rack_id")
+  releasedQuantity   Int                 @map("released_quantity")
+  notes              String?
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  stockRelease       StockRelease        @relation(fields: [stockReleaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  deviceDetail       DeviceDetail        @relation(fields: [deviceDetailId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rack               Rack                @relation(fields: [rackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stockReturnDetails StockReturnDetail[]
+
+  @@index([stockReleaseId], map: "stock_release_details_header_id_idx")
+  @@index([deviceDetailId, rackId], map: "stock_release_details_device_rack_idx")
+  @@map("stock_release_details")
+}
+
+model StockReturn {
+  id                BigInt              @id @default(autoincrement())
+  transactionNumber String              @unique(map: "stock_returns_transaction_number_key") @map("transaction_number")
+  returnDate        DateTime            @map("return_date") @db.Date
+  stockReleaseId    BigInt              @map("stock_release_id")
+  notes             String?
+  status            TransactionStatus   @default(DRAFT)
+  createdById       BigInt              @map("created_by")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  stockRelease      StockRelease        @relation(fields: [stockReleaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy         User                @relation("StockReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  details           StockReturnDetail[]
+
+  @@index([stockReleaseId, status], map: "stock_returns_release_status_idx")
+  @@index([status, returnDate], map: "stock_returns_status_date_idx")
+  @@index([createdById], map: "stock_returns_created_by_idx")
+  @@map("stock_returns")
+}
+
+model StockReturnDetail {
+  id                   BigInt             @id @default(autoincrement())
+  stockReturnId        BigInt             @map("stock_return_id")
+  stockReleaseDetailId BigInt             @map("stock_release_detail_id")
+  destinationRackId    BigInt             @map("destination_rack_id")
+  returnQuantity       Int                @map("return_quantity")
+  notes                String?
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  stockReturn          StockReturn        @relation(fields: [stockReturnId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stockReleaseDetail   StockReleaseDetail @relation(fields: [stockReleaseDetailId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  destinationRack      Rack               @relation("StockReturnDestinationRack", fields: [destinationRackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([stockReturnId], map: "stock_return_details_header_id_idx")
+  @@index([stockReleaseDetailId, stockReturnId], map: "stock_return_details_release_detail_idx")
+  @@index([destinationRackId], map: "stock_return_details_destination_rack_id_idx")
+  @@map("stock_return_details")
+}
+
+model StockMovement {
+  id                  BigInt          @id @default(autoincrement())
+  deviceDetailId      BigInt          @map("device_detail_id")
+  rackId              BigInt          @map("rack_id")
+  customerId          BigInt?         @map("customer_id")
+  transactionType     TransactionType @map("transaction_type")
+  transactionId       BigInt          @map("transaction_id")
+  transactionDetailId BigInt          @map("transaction_detail_id")
+  transactionNumber   String          @map("transaction_number")
+  transactionDate     DateTime        @map("transaction_date") @db.Date
+  engineerName        String?         @map("engineer_name")
+  quantityIn          Int             @default(0) @map("quantity_in")
+  quantityOut         Int             @default(0) @map("quantity_out")
+  movementPurpose     MovementPurpose @default(ORIGINAL) @map("movement_purpose")
+  reversalOfId        BigInt?         @unique(map: "stock_movements_one_reversal_per_original_key") @map("reversal_of_id")
+  createdById         BigInt          @map("created_by")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  deviceDetail        DeviceDetail    @relation(fields: [deviceDetailId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rack                Rack            @relation(fields: [rackId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer            Customer?       @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy           User            @relation("StockMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reversalOf          StockMovement?  @relation("StockMovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reversal            StockMovement?  @relation("StockMovementReversal")
+
+  @@unique([transactionType, transactionDetailId, movementPurpose], map: "stock_movements_source_identity_key")
+  @@index([deviceDetailId, rackId, transactionDate, createdAt], map: "stock_movements_balance_report_idx")
+  @@index([customerId, transactionDate, createdAt], map: "stock_movements_customer_report_idx")
+  @@index([transactionNumber, transactionDate], map: "stock_movements_transaction_lookup_idx")
+  @@index([transactionType, transactionId], map: "stock_movements_transaction_source_idx")
+  @@index([reversalOfId], map: "stock_movements_reversal_of_id_idx")
+  @@index([createdById], map: "stock_movements_created_by_idx")
+  @@map("stock_movements")
+}
