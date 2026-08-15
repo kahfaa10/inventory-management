@@ -10,3 +10,4 @@ generated/
 coverage/
 playwright-report/
 test-results/
+.pnpm-store/
